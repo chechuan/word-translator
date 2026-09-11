@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Check, Clipboard, Languages, RotateCcw } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
 import "./loading.css";
+import "./learning.css";
 
 function CopyButton({ value, label = "复制" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -18,14 +19,14 @@ function CopyButton({ value, label = "复制" }: { value: string; label?: string
   );
 }
 
-function ResultSection({ title, kicker, items, showSentence }: {
-  title: string; kicker: string; items: TranslationItem[]; showSentence?: boolean;
+function ResultSection({ title, kicker, items, showSentence, kind }: {
+  title: string; kicker: string; items: TranslationItem[]; showSentence?: boolean; kind?: "word" | "sentence" | "phrase";
 }) {
   if (!items.length) return null;
-  return <section className="result-section">
+  return <section className={`result-section ${kind ? `result-section-${kind}` : ""}`}>
     <div className="section-heading"><div><span className="section-kicker">{kicker}</span><h2>{title}</h2></div><span className="count-pill">{items.length}</span></div>
     <div className="result-list">{items.map((item, index) => <article className="translation-row" key={`${item.start}-${item.end}-${index}`}>
-      <div className="source-cell"><code>{item.source}</code>{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
+      <div className="source-cell"><code>{item.source}</code>{item.phonetic && <span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
       <div className="row-arrow">→</div><p>{item.translation || "暂未取得译文"}</p><CopyButton value={item.translation || item.source} />
     </article>)}</div>
   </section>;
@@ -74,10 +75,10 @@ export default function Home() {
       {error && <div className="error-message" role="alert">{error}</div>}
       {result && <section className="results" aria-live="polite">
         <div className="result-overview"><div><span className="section-kicker">识别结果</span><h2>这是一个<span>{typeLabel}</span></h2></div>{result.status === "partial" && <p>部分项目未完成，已展示可用结果。</p>}</div>
-        <ResultSection title="逐词翻译" kicker="Word by word" items={result.words} showSentence />
-        <ResultSection title="有效短语" kicker="Phrases in context" items={result.phrases} showSentence />
-        <ResultSection title="逐句翻译" kicker="Sentence by sentence" items={result.sentences} />
-        {result.fullTranslation && <section className="full-translation"><div><span className="section-kicker">Full translation</span><h2>整段翻译</h2></div><p>{result.fullTranslation}</p><CopyButton value={result.fullTranslation} label="复制整段" /></section>}
+        <ResultSection title="逐词翻译" kicker="Word by word" items={result.words} showSentence kind="word" />
+        <ResultSection title="有效短语" kicker="Phrases in context" items={result.phrases} showSentence kind="phrase" />
+        <ResultSection title="逐句翻译" kicker="Sentence by sentence" items={result.sentences} kind="sentence" />
+        {result.fullTranslation && <section className="full-translation"><div className="full-translation-heading"><span className="section-kicker">Full passage</span><h2>整段对照</h2></div><div className="passage-pair"><article><span>英文原文</span><p className="passage-source">{result.sourceText}</p></article><article><span>中文译文</span><p>{result.fullTranslation}</p></article></div><CopyButton value={`${result.sourceText}\n\n${result.fullTranslation}`} label="复制原文与译文" /></section>}
         {result.warnings.length > 0 && <p className="warning">{result.warnings.join(" · ")}</p>}
       </section>}
     </div>
