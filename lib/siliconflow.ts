@@ -45,18 +45,23 @@ export async function translateBatch(sources: string[]) {
   try {
     const content = await complete(model, `将下面每一行英文分别翻译成简体中文。严格保持相同行数和顺序；每行只输出对应译文，不要编号、不要解释、不要空行。
 
-${sources.join("\n")}`, { timeoutMs: 18_000, maxTokens: Math.min(1200, Math.max(128, sources.length * 40)) });
+${sources.join("\n")}`, { timeoutMs: 6_000, maxTokens: Math.min(1200, Math.max(128, sources.length * 40)) });
     const translations = content.split(/\r?\n/).map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)、])\s*/, "").trim()).filter(Boolean);
     if (translations.length === sources.length) return translations;
   } catch { /* fall back to reliable one-item translations */ }
 
-  const results: string[] = [];
-  for (const source of sources) {
-    try {
-      results.push(await complete(model, `把下面的英文翻译成简体中文，不要额外解释。
+  const results = Array<string>(sources.length).fill("");
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(2, sources.length) }, async () => {
+    while (cursor < sources.length) {
+      const index = cursor++;
+      try {
+        results[index] = await complete(model, `把下面的英文翻译成简体中文，不要额外解释。
 
-${source}`, { timeoutMs: 14_000, maxTokens: 128 }));
-    } catch { results.push(""); }
-  }
+${sources[index]}`, { timeoutMs: 10_000, maxTokens: 128 });
+      } catch { /* return other successful items */ }
+    }
+  });
+  await Promise.all(workers);
   return results;
 }
