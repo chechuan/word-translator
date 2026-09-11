@@ -10,10 +10,10 @@
 .translation-progress rect {
   fill: none;
   stroke: #087e8b;
-  stroke-width: 0.7;
+  stroke-width: 0.18;
   stroke-linecap: round;
-  stroke-dasharray: 14 86;
-  animation: translator-border-progress 1.35s linear infinite;
+  stroke-dasharray: 10 90;
+  animation: translator-border-progress 1.5s linear infinite;
 }
 
 @keyframes translator-border-progress {
