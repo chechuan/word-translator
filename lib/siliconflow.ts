@@ -38,24 +38,13 @@ ${text}`, { json: true, timeoutMs: 8_000, maxTokens: 500 });
   return (parsed.phrases ?? []).flatMap((item) => typeof item.source === "string" && typeof item.start === "number" && typeof item.end === "number" ? [{ source: item.source, start: item.start, end: item.end }] : []);
 }
 
-async function translateOne(model: string, source: string) {
-  return complete(model, `把下面的英文翻译成简体中文，不要额外解释。
-
-${source}`, { timeoutMs: 14_000, maxTokens: 128 });
-}
-
 export async function translateBatch(sources: string[]) {
   if (!sources.length) return [];
   const model = process.env.TRANSLATION_MODEL;
   if (!model) throw new Error("翻译服务尚未配置 TRANSLATION_MODEL。");
-  const translations = Array<string>(sources.length).fill("");
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(4, sources.length) }, async () => {
-    while (cursor < sources.length) {
-      const index = cursor++;
-      try { translations[index] = await translateOne(model, sources[index]); } catch { /* partial results are still useful */ }
-    }
-  });
-  await Promise.all(workers);
-  return translations;
+  const content = await complete(model, `将下面每一行英文分别翻译成简体中文。严格保持相同行数和顺序；每行只输出对应译文，不要编号、不要解释、不要空行。
+
+${sources.join("\n")}`, { timeoutMs: 18_000, maxTokens: Math.min(1200, Math.max(128, sources.length * 40)) });
+  const translations = content.split(/\r?\n/).map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)、])\s*/, "").trim()).filter(Boolean);
+  return sources.map((_, index) => translations[index] ?? "");
 }

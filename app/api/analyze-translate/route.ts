@@ -31,11 +31,10 @@ export async function POST(request: Request) {
       try { phrases = validatePhrases(text, await findPhrases(text), sentences).slice(0, 50); }
       catch { warnings.push("短语识别响应较慢，本次已跳过短语结果。"); }
     }
-    const [translatedWords, translatedPhrases, translatedSentences, fullTranslation] = await Promise.all([
-      withTranslations(words), withTranslations(phrases),
-      inputType === "sentence" || inputType === "paragraph" ? withTranslations(sentences) : Promise.resolve([]),
-      inputType === "paragraph" ? translateBatch([text]).then(([item]) => item) : Promise.resolve(null),
-    ]);
+    const translatedWords = await withTranslations(words);
+    const translatedPhrases = await withTranslations(phrases);
+    const translatedSentences = inputType === "sentence" || inputType === "paragraph" ? await withTranslations(sentences) : [];
+    const fullTranslation = inputType === "paragraph" ? (await translateBatch([text]))[0] : null;
     const incomplete = [...translatedWords, ...translatedPhrases, ...translatedSentences].some((item) => !item.translation) || (inputType === "paragraph" && !fullTranslation);
     if (incomplete) warnings.push("部分翻译未完成。");
     const result: TranslationResponse = { requestId: id, status: warnings.length ? "partial" : "success", inputType, words: translatedWords, phrases: translatedPhrases, sentences: translatedSentences, fullTranslation, warnings };
