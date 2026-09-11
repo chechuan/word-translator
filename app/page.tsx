@@ -64,7 +64,7 @@ export default function Home() {
     <header className="site-header"><a className="brand" href="#top" aria-label="分层翻译首页"><span className="brand-mark"><Languages size={20} /></span><span>分层翻译</span></a><span className="header-note">English → 简体中文</span></header>
     <div className="page-shell" id="top">
       <section className="translator-card" aria-label="英文翻译输入区">
-        {isLoading && <><span className="translation-progress-track" aria-hidden="true" /><span className="translation-progress" aria-hidden="true" /></>}
+        {isLoading && <svg className="translation-progress" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.12" y="0.18" width="99.76" height="99.64" rx="1.6" ry="5.5" pathLength="100" strokeDasharray="14 86" vectorEffect="non-scaling-stroke"><animate attributeName="stroke-dashoffset" from="0" to="-100" dur="7s" repeatCount="indefinite" /></rect></svg>}
         <div className="input-toolbar"><span>输入英文</span><span>{text.length} / 1,000</span></div>
         <div className="input-area">
           <textarea value={text} onChange={(event) => { lastRequested.current = ""; setText(event.target.value.slice(0, 1000)); }} onPaste={(event) => { const field = event.currentTarget; window.setTimeout(() => { const pasted = field.value.slice(0, 1000); setText(pasted); void translate(pasted); }, 0); }} onBlur={() => void translate()} placeholder="在这里粘贴一个英文单词、短语、句子或段落…" aria-label="英文文本" />
