@@ -14,10 +14,10 @@
   stroke: #087e8b;
   stroke-width: 2;
   stroke-linecap: round;
-  stroke-dasharray: 10 90;
-  animation: translator-border-progress 1.5s linear infinite;
+  stroke-dasharray: 140px 10000px;
+  animation: translator-border-progress 2.5s linear infinite;
 }
 
 @keyframes translator-border-progress {
-  to { stroke-dashoffset: -100; }
+  to { stroke-dashoffset: -10140px; }
 }
