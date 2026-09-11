@@ -12,7 +12,7 @@
 .translation-progress rect {
   fill: none;
   stroke: #087e8b;
-  stroke-width: 0.32;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-dasharray: 10 90;
   animation: translator-border-progress 1.5s linear infinite;
