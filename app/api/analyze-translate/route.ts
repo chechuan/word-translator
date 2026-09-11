@@ -20,23 +20,30 @@ export async function POST(request: Request) {
     const { text: raw } = InputSchema.parse(await request.json()); const text = normalize(raw);
     if (!text) return Response.json({ error: "请输入英文内容。" }, { status: 400 });
     if (!/[A-Za-z]/.test(text)) return Response.json({ error: "目前仅支持英文到简体中文翻译。" }, { status: 400 });
-    const cached = readCache<TranslationResponse>(`v1:${text}`); if (cached) return Response.json({ ...cached, requestId: id });
+    const cached = readCache<TranslationResponse>(`v2:${text}`); if (cached) return Response.json({ ...cached, requestId: id });
     const sentences = splitSentences(text); const words = splitWords(text, sentences);
     if (words.length > 150) return Response.json({ error: "单次最多处理 150 个英文单词。" }, { status: 413 });
     if (sentences.length > 20) return Response.json({ error: "单次最多处理 20 个句子。" }, { status: 413 });
     const inputType = classify(text, words, sentences);
-    const phrases = validatePhrases(text, await findPhrases(text), sentences).slice(0, 50);
+    let phrases: ReturnType<typeof validatePhrases> = [];
+    const warnings: string[] = [];
+    if (inputType !== "word") {
+      try { phrases = validatePhrases(text, await findPhrases(text), sentences).slice(0, 50); }
+      catch { warnings.push("短语识别响应较慢，本次已跳过短语结果。"); }
+    }
     const [translatedWords, translatedPhrases, translatedSentences, fullTranslation] = await Promise.all([
-      withTranslations(words), inputType === "word" ? Promise.resolve([]) : withTranslations(phrases),
+      withTranslations(words), withTranslations(phrases),
       inputType === "sentence" || inputType === "paragraph" ? withTranslations(sentences) : Promise.resolve([]),
       inputType === "paragraph" ? translateBatch([text]).then(([item]) => item) : Promise.resolve(null),
     ]);
     const incomplete = [...translatedWords, ...translatedPhrases, ...translatedSentences].some((item) => !item.translation) || (inputType === "paragraph" && !fullTranslation);
-    const result: TranslationResponse = { requestId: id, status: incomplete ? "partial" : "success", inputType, words: translatedWords, phrases: translatedPhrases, sentences: translatedSentences, fullTranslation, warnings: incomplete ? ["部分翻译未完成"] : [] };
-    writeCache(`v1:${text}`, result); return Response.json(result);
+    if (incomplete) warnings.push("部分翻译未完成。");
+    const result: TranslationResponse = { requestId: id, status: warnings.length ? "partial" : "success", inputType, words: translatedWords, phrases: translatedPhrases, sentences: translatedSentences, fullTranslation, warnings };
+    writeCache(`v2:${text}`, result); return Response.json(result);
   } catch (caught) {
     if (caught instanceof z.ZodError) return Response.json({ error: "输入格式不正确。" }, { status: 400 });
     const message = caught instanceof Error ? caught.message : "服务暂时不可用。";
-    return Response.json({ error: message, requestId: id }, { status: /尚未配置/.test(message) ? 503 : 502 });
+    const timeout = /timeout|aborted/i.test(message);
+    return Response.json({ error: timeout ? "翻译服务响应超时，请稍后重试。" : message, requestId: id }, { status: /尚未配置/.test(message) ? 503 : timeout ? 504 : 502 });
   }
 }
