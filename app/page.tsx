@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Check, Clipboard, Languages, RotateCcw, Sparkles } from "lucide-react";
+import { Check, Clipboard, Languages, RotateCcw } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
 
 const EXAMPLE =
@@ -61,7 +61,6 @@ export default function Home() {
   return <main>
     <header className="site-header"><a className="brand" href="#top" aria-label="分层翻译首页"><span className="brand-mark"><Languages size={20} /></span><span>分层翻译</span></a><span className="header-note">English → 简体中文</span></header>
     <div className="page-shell" id="top">
-      <section className="intro"><p className="eyebrow"><Sparkles size={14} /> 英语拆解与翻译</p><h1>读懂英文，<em>不只看译文。</em></h1><p>粘贴英文内容，按原文顺序查看逐词、短语、逐句和整段译文。</p></section>
       <section className="translator-card" aria-label="英文翻译输入区">
         <div className="input-toolbar"><span>输入英文</span><span>{text.length} / 1,000</span></div>
         <textarea value={text} onChange={(event) => setText(event.target.value.slice(0, 1000))} placeholder="在这里粘贴一个英文单词、短语、句子或段落…" aria-label="英文文本" />
