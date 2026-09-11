@@ -1,0 +1,19 @@
+.translator-card.is-translating::after {
+  position: absolute;
+  z-index: 3;
+  inset: -2px;
+  pointer-events: none;
+  content: "";
+  border: 3px solid transparent;
+  border-radius: 23px;
+  background: conic-gradient(from 0deg, transparent 0 20%, #087e8b 29%, #f6bd60 35%, transparent 43% 100%) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: translator-border-spin 1.15s linear infinite;
+}
+
+@keyframes translator-border-spin {
+  to { transform: rotate(1turn); }
+}

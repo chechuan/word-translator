@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, Clipboard, Languages, RotateCcw } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
+import "./loading.css";
 
 function CopyButton({ value, label = "复制" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -34,33 +35,38 @@ export default function Home() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<TranslationResponse | null>(null);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const lastRequested = useRef("");
   const typeLabel = useMemo(() => {
     const labels = { word: "单词", phrase: "短语", sentence: "句子", paragraph: "段落" };
     return result ? labels[result.inputType] : null;
   }, [result]);
 
-  async function translate() {
-    if (!text.trim()) return;
+  async function translate(content = text) {
+    if (!content.trim() || content === lastRequested.current) return;
+    lastRequested.current = content;
     controller.current?.abort(); const current = new AbortController(); controller.current = current;
-    setError(""); setResult(null);
+    setError(""); setResult(null); setIsLoading(true);
     try {
-      const response = await fetch("/api/analyze-translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }), signal: current.signal });
+      const response = await fetch("/api/analyze-translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: content }), signal: current.signal });
       const data = (await response.json()) as TranslationResponse & { error?: string };
       if (!response.ok) throw new Error(data.error || "翻译服务暂时不可用，请稍后再试。");
       setResult(data);
     } catch (caught) {
       if ((caught as Error).name !== "AbortError") setError((caught as Error).message);
+    } finally {
+      if (controller.current === current) setIsLoading(false);
     }
   }
 
   return <main>
     <header className="site-header"><a className="brand" href="#top" aria-label="分层翻译首页"><span className="brand-mark"><Languages size={20} /></span><span>分层翻译</span></a><span className="header-note">English → 简体中文</span></header>
     <div className="page-shell" id="top">
-      <section className="translator-card" aria-label="英文翻译输入区">
+      <section className={`translator-card${isLoading ? " is-translating" : ""}`} aria-label="英文翻译输入区">
         <div className="input-toolbar"><span>输入英文</span><span>{text.length} / 1,000</span></div>
-        <textarea value={text} onChange={(event) => setText(event.target.value.slice(0, 1000))} onBlur={() => void translate()} placeholder="在这里粘贴一个英文单词、短语、句子或段落…" aria-label="英文文本" />
-        <div className="input-footer"><button className="text-button" type="button" onClick={() => { controller.current?.abort(); setText(""); setResult(null); setError(""); }}><RotateCcw size={15} /> 清空</button></div>
+        <textarea value={text} onChange={(event) => { lastRequested.current = ""; setText(event.target.value.slice(0, 1000)); }} onPaste={(event) => { const field = event.currentTarget; window.setTimeout(() => { const pasted = field.value.slice(0, 1000); setText(pasted); void translate(pasted); }, 0); }} onBlur={() => void translate()} placeholder="在这里粘贴一个英文单词、短语、句子或段落…" aria-label="英文文本" />
+        <div className="input-footer"><button className="text-button" type="button" onClick={() => { controller.current?.abort(); lastRequested.current = ""; setIsLoading(false); setText(""); setResult(null); setError(""); }}><RotateCcw size={15} /> 清空</button></div>
       </section>
       {error && <div className="error-message" role="alert">{error}</div>}
       {result && <section className="results" aria-live="polite">
