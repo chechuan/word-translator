@@ -21,11 +21,14 @@ function CopyButton({ value, label = "复制" }: { value: string; label?: string
 
 function SpeakButton({ value }: { value: string }) {
   return <button className="speak-button" type="button" onClick={() => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(value);
-    utterance.lang = "en-US";
-    utterance.rate = 0.82;
-    window.speechSynthesis.speak(utterance);
+    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=2`);
+    audio.play().catch(() => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(value);
+      utterance.lang = "en-US";
+      utterance.rate = 0.82;
+      window.speechSynthesis.speak(utterance);
+    });
   }} aria-label={`朗读 ${value}`} title="朗读单词"><Volume2 size={16} /></button>;
 }
 
