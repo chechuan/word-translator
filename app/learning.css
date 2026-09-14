@@ -49,6 +49,29 @@
   font-size: .83rem;
 }
 
+.pronunciation {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.speak-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d5e9e8;
+  border-radius: 50%;
+  background: #f2faf9;
+  color: #0a8992;
+}
+
+.speak-button:hover {
+  border-color: #0a8992;
+  background: #e2f4f2;
+}
+
 .result-section-word .translation-row {
   grid-template-columns: minmax(180px, .8fr) 22px minmax(230px, 1.3fr) auto;
 }

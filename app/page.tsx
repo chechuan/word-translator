@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Check, Clipboard, Languages, RotateCcw } from "lucide-react";
+import { Check, Clipboard, Languages, RotateCcw, Volume2 } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
 import "./loading.css";
 import "./learning.css";
@@ -19,6 +19,16 @@ function CopyButton({ value, label = "复制" }: { value: string; label?: string
   );
 }
 
+function SpeakButton({ value }: { value: string }) {
+  return <button className="speak-button" type="button" onClick={() => {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(value);
+    utterance.lang = "en-US";
+    utterance.rate = 0.82;
+    window.speechSynthesis.speak(utterance);
+  }} aria-label={`朗读 ${value}`} title="朗读单词"><Volume2 size={16} /></button>;
+}
+
 function ResultSection({ title, kicker, items, showSentence, kind }: {
   title: string; kicker: string; items: TranslationItem[]; showSentence?: boolean; kind?: "word" | "sentence" | "phrase";
 }) {
@@ -26,7 +36,7 @@ function ResultSection({ title, kicker, items, showSentence, kind }: {
   return <section className={`result-section ${kind ? `result-section-${kind}` : ""}`}>
     <div className="section-heading"><div><span className="section-kicker">{kicker}</span><h2>{title}</h2></div><span className="count-pill">{items.length}</span></div>
     <div className="result-list">{items.map((item, index) => <article className="translation-row" key={`${item.start}-${item.end}-${index}`}>
-      <div className="source-cell"><code>{item.source}</code>{item.phonetic && <span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
+      <div className="source-cell"><code>{item.source}</code>{item.phonetic && <span className="pronunciation"><span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>{kind === "word" && <SpeakButton value={item.source} />}</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
       <div className="row-arrow">→</div><p>{item.translation || "暂未取得译文"}</p><CopyButton value={item.translation || item.source} />
     </article>)}</div>
   </section>;
