@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Clipboard, Languages, RotateCcw, Volume2 } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
 import "./loading.css";
 import "./learning.css";
 
-function CopyButton({ value, label = "复制" }: { value: string; label?: string }) {
+function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button type="button" className="copy-button" onClick={async () => {
@@ -14,12 +14,12 @@ function CopyButton({ value, label = "复制" }: { value: string; label?: string
       window.setTimeout(() => setCopied(false), 1400);
     }} aria-label={`${label}：${value}`}>
       {copied ? <Check size={15} /> : <Clipboard size={15} />}
-      {copied ? "已复制" : label}
+      {copied ? "Copied" : label}
     </button>
   );
 }
 
-function SpeakButton({ value, label = "朗读单词" }: { value: string; label?: string }) {
+function SpeakButton({ value, label = "Play word" }: { value: string; label?: string }) {
   return <button className="speak-button" type="button" onClick={() => {
     const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=2`);
     audio.play().catch(() => {
@@ -39,8 +39,8 @@ function ResultSection({ title, kicker, items, showSentence, kind }: {
   return <section className={`result-section ${kind ? `result-section-${kind}` : ""}`}>
     <div className="section-heading"><div><span className="section-kicker">{kicker}</span><h2>{title}</h2></div><span className="count-pill">{items.length}</span></div>
     <div className="result-list">{items.map((item, index) => <article className="translation-row" key={`${item.start}-${item.end}-${index}`}>
-      <div className="source-cell"><code>{item.source}</code>{kind === "sentence" && <SpeakButton value={item.source} label="朗读整句" />}{item.phonetic && <span className="pronunciation"><span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>{kind === "word" && <SpeakButton value={item.source} />}</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
-      <div className="row-arrow">→</div><p>{item.translation || "暂未取得译文"}</p><CopyButton value={item.translation || item.source} />
+      <div className="source-cell"><code>{item.source}</code>{kind === "sentence" && <SpeakButton value={item.source} label="Play sentence" />}{item.phonetic && <span className="pronunciation"><span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>{kind === "word" && <SpeakButton value={item.source} />}</span>}{showSentence && <span>Sentence {item.sentenceIndex + 1}</span>}</div>
+      <div className="row-arrow">→</div><p>{item.translation || "Translation unavailable"}</p><CopyButton value={item.translation || item.source} />
     </article>)}</div>
   </section>;
 }
@@ -52,11 +52,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const lastRequested = useRef("");
-  const typeLabel = useMemo(() => {
-    const labels = { word: "单词", phrase: "短语", sentence: "句子", paragraph: "段落" };
-    return result ? labels[result.inputType] : null;
-  }, [result]);
-
   async function translate(content = text) {
     if (!content.trim() || content === lastRequested.current) return;
     lastRequested.current = content;
@@ -65,7 +60,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/analyze-translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: content }), signal: current.signal });
       const data = (await response.json()) as TranslationResponse & { error?: string };
-      if (!response.ok) throw new Error(data.error || "翻译服务暂时不可用，请稍后再试。");
+      if (!response.ok) throw new Error(data.error || "Translation is temporarily unavailable. Please try again.");
       setResult(data);
     } catch (caught) {
       if ((caught as Error).name !== "AbortError") setError((caught as Error).message);
@@ -75,23 +70,22 @@ export default function Home() {
   }
 
   return <main>
-    <header className="site-header"><a className="brand" href="#top" aria-label="分层翻译首页"><span className="brand-mark"><Languages size={20} /></span><span>分层翻译</span></a><span className="header-note">English → 简体中文</span></header>
+    <header className="site-header"><a className="brand" href="#top" aria-label="Layered Translation home"><span className="brand-mark"><Languages size={20} /></span><span>Layered Translation</span></a><span className="header-note">English → Chinese</span></header>
     <div className="page-shell" id="top">
-      <section className="translator-card" aria-label="英文翻译输入区">
+      <section className="translator-card" aria-label="English translation input">
         {isLoading && <svg className="translation-progress" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.12" y="0.18" width="99.76" height="99.64" rx="1.6" ry="5.5" pathLength="100" /></svg>}
-        <div className="input-toolbar"><span>输入英文</span><span>{text.length} / 1,000</span></div>
+        <div className="input-toolbar"><span>Paste English</span><span>{text.length} / 1,000</span></div>
         <div className="input-area">
-          <textarea value={text} onChange={(event) => { lastRequested.current = ""; setText(event.target.value.slice(0, 1000)); }} onPaste={(event) => { const field = event.currentTarget; window.setTimeout(() => { const pasted = field.value.slice(0, 1000); setText(pasted); void translate(pasted); }, 0); }} onBlur={() => void translate()} placeholder="在这里粘贴一个英文单词、短语、句子或段落…" aria-label="英文文本" />
+          <textarea value={text} onChange={(event) => { lastRequested.current = ""; setText(event.target.value.slice(0, 1000)); }} onPaste={(event) => { const field = event.currentTarget; window.setTimeout(() => { const pasted = field.value.slice(0, 1000); setText(pasted); void translate(pasted); }, 0); }} onBlur={() => void translate()} placeholder="Paste an English word, phrase, sentence, or passage…" aria-label="English text" />
         </div>
-        <div className="input-footer"><button className="text-button" type="button" onClick={() => { controller.current?.abort(); lastRequested.current = ""; setIsLoading(false); setText(""); setResult(null); setError(""); }}><RotateCcw size={15} /> 清空</button></div>
+        <div className="input-footer"><button className="text-button" type="button" onClick={() => { controller.current?.abort(); lastRequested.current = ""; setIsLoading(false); setText(""); setResult(null); setError(""); }}><RotateCcw size={15} /> Clear</button></div>
       </section>
       {error && <div className="error-message" role="alert">{error}</div>}
       {result && <section className="results" aria-live="polite">
-        <div className="result-overview"><div><span className="section-kicker">识别结果</span><h2>这是一个<span>{typeLabel}</span></h2></div>{result.status === "partial" && <p>部分项目未完成，已展示可用结果。</p>}</div>
-        <ResultSection title="逐词翻译" kicker="Word by word" items={result.words} showSentence kind="word" />
-        <ResultSection title="有效短语" kicker="Phrases in context" items={result.phrases} showSentence kind="phrase" />
-        <ResultSection title="逐句翻译" kicker="Sentence by sentence" items={result.sentences} kind="sentence" />
-        {result.fullTranslation && <section className="full-translation"><div className="full-translation-heading"><span className="section-kicker">Full passage</span><h2>整段对照</h2></div><div className="passage-pair"><article><span>英文原文</span><p className="passage-source">{result.sourceText}</p></article><article><span>中文译文</span><p>{result.fullTranslation}</p></article></div><CopyButton value={`${result.sourceText}\n\n${result.fullTranslation}`} label="复制原文与译文" /></section>}
+        <ResultSection title="Word by Word" kicker="Vocabulary" items={result.words} showSentence kind="word" />
+        <ResultSection title="Phrases in Context" kicker="Phrases" items={result.phrases} showSentence kind="phrase" />
+        <ResultSection title="Sentence by Sentence" kicker="Sentences" items={result.sentences} kind="sentence" />
+        {result.fullTranslation && <section className="full-translation"><div className="full-translation-heading"><span className="section-kicker">Full passage</span><h2>Full Translation</h2></div><div className="passage-pair"><article><span>Original English</span><p className="passage-source">{result.sourceText}</p></article><article><span>Chinese Translation</span><p>{result.fullTranslation}</p></article></div><CopyButton value={`${result.sourceText}\n\n${result.fullTranslation}`} label="Copy original and translation" /></section>}
         {result.warnings.length > 0 && <p className="warning">{result.warnings.join(" · ")}</p>}
       </section>}
     </div>
