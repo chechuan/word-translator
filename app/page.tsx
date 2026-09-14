@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Clipboard, Languages, RotateCcw, Volume2 } from "lucide-react";
+import { Check, Clipboard, RotateCcw, Volume2 } from "lucide-react";
 import type { TranslationResponse, TranslationItem } from "@/types/translation";
 import "./loading.css";
 import "./learning.css";
@@ -70,7 +70,6 @@ export default function Home() {
   }
 
   return <main>
-    <header className="site-header"><a className="brand" href="#top" aria-label="Layered Translation home"><span className="brand-mark"><Languages size={20} /></span><span>Layered Translation</span></a><span className="header-note">English → Chinese</span></header>
     <div className="page-shell" id="top">
       <section className="translator-card" aria-label="English translation input">
         {isLoading && <svg className="translation-progress" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.12" y="0.18" width="99.76" height="99.64" rx="1.6" ry="5.5" pathLength="100" /></svg>}
