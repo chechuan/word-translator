@@ -19,7 +19,7 @@ function CopyButton({ value, label = "复制" }: { value: string; label?: string
   );
 }
 
-function SpeakButton({ value }: { value: string }) {
+function SpeakButton({ value, label = "朗读单词" }: { value: string; label?: string }) {
   return <button className="speak-button" type="button" onClick={() => {
     const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=2`);
     audio.play().catch(() => {
@@ -29,7 +29,7 @@ function SpeakButton({ value }: { value: string }) {
       utterance.rate = 0.82;
       window.speechSynthesis.speak(utterance);
     });
-  }} aria-label={`朗读 ${value}`} title="朗读单词"><Volume2 size={16} /></button>;
+  }} aria-label={`${label}：${value}`} title={label}><Volume2 size={16} /></button>;
 }
 
 function ResultSection({ title, kicker, items, showSentence, kind }: {
@@ -39,7 +39,7 @@ function ResultSection({ title, kicker, items, showSentence, kind }: {
   return <section className={`result-section ${kind ? `result-section-${kind}` : ""}`}>
     <div className="section-heading"><div><span className="section-kicker">{kicker}</span><h2>{title}</h2></div><span className="count-pill">{items.length}</span></div>
     <div className="result-list">{items.map((item, index) => <article className="translation-row" key={`${item.start}-${item.end}-${index}`}>
-      <div className="source-cell"><code>{item.source}</code>{item.phonetic && <span className="pronunciation"><span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>{kind === "word" && <SpeakButton value={item.source} />}</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
+      <div className="source-cell"><code>{item.source}</code>{kind === "sentence" && <SpeakButton value={item.source} label="朗读整句" />}{item.phonetic && <span className="pronunciation"><span className="phonetic">/{item.phonetic.replaceAll("/", "")}/</span>{kind === "word" && <SpeakButton value={item.source} />}</span>}{showSentence && <span>第 {item.sentenceIndex + 1} 句</span>}</div>
       <div className="row-arrow">→</div><p>{item.translation || "暂未取得译文"}</p><CopyButton value={item.translation || item.source} />
     </article>)}</div>
   </section>;
