@@ -133,9 +133,16 @@
   background: #f5fbfa;
 }
 
-.passage-pair article > span {
-  display: block;
+.passage-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
+}
+
+.passage-label > span {
+  display: block;
   color: #0a8992;
   font-size: .76rem;
   font-weight: 750;

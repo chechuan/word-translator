@@ -6,6 +6,34 @@ import type { TranslationResponse, TranslationItem } from "@/types/translation";
 import "./loading.css";
 import "./learning.css";
 
+let playbackId = 0;
+let activeAudio: HTMLAudioElement | null = null;
+
+function splitForSpeech(text: string) {
+  const chunks: string[] = [];
+  let current = "";
+  for (const part of text.match(/[^.!?]+[.!?]*|\S+/g) ?? []) {
+    if (current && current.length + part.length + 1 > 180) { chunks.push(current); current = part.trim(); }
+    else current = `${current} ${part}`.trim();
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function playSpeech(text: string) {
+  const id = ++playbackId;
+  activeAudio?.pause();
+  const chunks = splitForSpeech(text);
+  const playNext = (index: number) => {
+    if (id !== playbackId || index >= chunks.length) return;
+    const audio = new Audio(`https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=en-US&q=${encodeURIComponent(chunks[index])}`);
+    activeAudio = audio;
+    audio.onended = () => playNext(index + 1);
+    audio.play().catch(() => { /* leave silent rather than falling back to low-quality system speech */ });
+  };
+  playNext(0);
+}
+
 function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -21,14 +49,7 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
 
 function SpeakButton({ value, label = "Play word" }: { value: string; label?: string }) {
   return <button className="speak-button" type="button" onClick={() => {
-    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=2`);
-    audio.play().catch(() => {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(value);
-      utterance.lang = "en-US";
-      utterance.rate = 0.82;
-      window.speechSynthesis.speak(utterance);
-    });
+    playSpeech(value);
   }} aria-label={`${label}：${value}`} title={label}><Volume2 size={16} /></button>;
 }
 
@@ -84,7 +105,7 @@ export default function Home() {
         <ResultSection title="Word by Word" kicker="Vocabulary" items={result.words} showSentence kind="word" />
         <ResultSection title="Phrases in Context" kicker="Phrases" items={result.phrases} showSentence kind="phrase" />
         <ResultSection title="Sentence by Sentence" kicker="Sentences" items={result.sentences} kind="sentence" />
-        {result.fullTranslation && <section className="full-translation"><div className="full-translation-heading"><span className="section-kicker">Full passage</span><h2>Full Translation</h2></div><div className="passage-pair"><article><span>Original English</span><p className="passage-source">{result.sourceText}</p></article><article><span>Chinese Translation</span><p>{result.fullTranslation}</p></article></div><CopyButton value={`${result.sourceText}\n\n${result.fullTranslation}`} label="Copy original and translation" /></section>}
+        {result.fullTranslation && <section className="full-translation"><div className="full-translation-heading"><span className="section-kicker">Full passage</span><h2>Full Translation</h2></div><div className="passage-pair"><article><div className="passage-label"><span>Original English</span><SpeakButton value={result.sourceText} label="Play passage" /></div><p className="passage-source">{result.sourceText}</p></article><article><div className="passage-label"><span>Chinese Translation</span></div><p>{result.fullTranslation}</p></article></div><CopyButton value={`${result.sourceText}\n\n${result.fullTranslation}`} label="Copy original and translation" /></section>}
         {result.warnings.length > 0 && <p className="warning">{result.warnings.join(" · ")}</p>}
       </section>}
     </div>
