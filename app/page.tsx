@@ -140,6 +140,7 @@ export default function Home() {
       addTopic={g => { setActiveGroup(g.id); setEditor({kind:"topic",groupId:g.id}); }}
       editTopic={(g,t) => { setActiveGroup(g.id); setActiveTopic(t.id); setTopicTools({group:g,topic:t}); }}
       addQuestion={t => { const g = data.groups.find(item => item.topics.some(item => item.id === t.id)); if (g) setActiveGroup(g.id); setActiveTopic(t.id); setEditor({kind:"question",topicId:t.id}); }}
+      editQuestion={(g,t,q) => { selectQuestion(t,q,g); setEditor({kind:"question",topicId:t.id,question:q}); }}
       openQuestion={(g,t,q) => { selectQuestion(t,q,g); setDetailOpen(true); }}
       practiceTopic={t => setPractice({kind:"questions",topicId:t.id})}
       practiceQuestion={(t,q) => setPractice({kind:"answer",topicId:t.id,questionId:q.id})}
