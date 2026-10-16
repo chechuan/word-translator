@@ -24,7 +24,45 @@ export type Question = z.infer<typeof questionSchema>;
 export type Topic = z.infer<typeof topicSchema>;
 export type StudyGroup = z.infer<typeof groupSchema>;
 export type StudyData = z.infer<typeof studySchema>;
+export type StudyNodeKind = "group" | "topic" | "question";
+export type StudyNodeTarget = { kind: StudyNodeKind; id: string };
 export const STORAGE_KEY = "shishi-history-v1";
+
+function moveSibling<T extends { id: string }>(items: T[], id: string, direction: -1 | 1): T[] {
+  const index = items.findIndex(item => item.id === id);
+  const next = index + direction;
+  if (index < 0 || next < 0 || next >= items.length) return items;
+  const result = [...items];
+  [result[index], result[next]] = [result[next], result[index]];
+  return result;
+}
+
+export function moveStudyNode(data: StudyData, target: StudyNodeTarget, direction: -1 | 1): StudyData {
+  if (target.kind === "group") return { ...data, groups: moveSibling(data.groups, target.id, direction) };
+  return { ...data, groups: data.groups.map(group => ({ ...group, topics: target.kind === "topic"
+    ? moveSibling(group.topics, target.id, direction)
+    : group.topics.map(topic => ({ ...topic, questions: moveSibling(topic.questions, target.id, direction) })),
+  })) };
+}
+
+export function deleteStudyNode(data: StudyData, target: StudyNodeTarget): StudyData {
+  if (target.kind === "group" && data.groups.length === 1) return data;
+  const removedIds = new Set<string>([target.id]);
+  data.groups.forEach(group => group.topics.forEach(topic => {
+    if ((target.kind === "group" && group.id === target.id) || (target.kind === "topic" && topic.id === target.id)) {
+      removedIds.add(topic.id);
+      topic.questions.forEach(question => removedIds.add(question.id));
+    }
+  }));
+  return { ...data,
+    drafts: Object.fromEntries(Object.entries(data.drafts).filter(([key]) => !removedIds.has(key.slice(key.indexOf(":") + 1)))),
+    groups: data.groups.filter(group => target.kind !== "group" || group.id !== target.id).map(group => ({ ...group,
+      topics: group.topics.filter(topic => target.kind !== "topic" || topic.id !== target.id).map(topic => ({ ...topic,
+        questions: topic.questions.filter(question => target.kind !== "question" || question.id !== target.id),
+      })),
+    })),
+  };
+}
 
 export function parseMemoryKeywords(text: string): string[] {
   return text.split(/\r?\n|(?=[（(]\d{1,3}[）)])/u)

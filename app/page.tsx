@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Check, CheckCheck, ChevronDown, ChevronRight, Circle, GitBranch, Lightbulb, Network, Pencil, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import ArchitectureMap from "./architecture-map";
-import { getQuestions, makeInitialData, parseMemoryKeywords, parseStudyData, removeUnusedExample, searchQuestions, statusLabels, STORAGE_KEY, type Question, type StudyData, type StudyGroup, type StudyStatus, type Topic } from "@/lib/study";
+import { deleteStudyNode, getQuestions, makeInitialData, moveStudyNode, parseMemoryKeywords, parseStudyData, removeUnusedExample, searchQuestions, statusLabels, STORAGE_KEY, type Question, type StudyData, type StudyGroup, type StudyNodeKind, type StudyStatus, type Topic } from "@/lib/study";
 
-type Editor = { kind: "question"; topicId: string; question?: Question } | { kind: "topic"; groupId: string; topic?: Topic } | { kind: "group"; group: StudyGroup };
+type Editor = { kind: "question"; topicId: string; question?: Question } | { kind: "topic"; groupId: string; topic?: Topic } | { kind: "group"; group?: StudyGroup };
 type Practice = { kind: "questions" | "answer"; topicId: string; questionId?: string };
 const colors = ["sage", "blue", "amber", "rose", "violet"];
 
@@ -26,9 +26,9 @@ function EditorModal({ editor, save, close }: { editor: Editor; save: (values: {
   const [title, setTitle] = useState(item?.title ?? "");
   const [answer, setAnswer] = useState(editor.kind === "question" ? editor.question?.answer ?? "" : "");
   const [keywords, setKeywords] = useState(editor.kind === "question" ? parseMemoryKeywords(editor.question?.keywords.join("\n") ?? "").map((word, index) => `（${index + 1}）${word}`).join("\n") : "");
-  const [subtitle, setSubtitle] = useState(editor.kind === "group" ? editor.group.subtitle : "");
+  const [subtitle, setSubtitle] = useState(editor.kind === "group" ? editor.group?.subtitle ?? "" : "");
   const [formError, setFormError] = useState("");
-  const [period, setPeriod] = useState(editor.kind === "group" ? editor.group.period : "");
+  const [period, setPeriod] = useState(editor.kind === "group" ? editor.group?.period ?? "" : "");
   const name = editor.kind === "question" ? "论述题" : editor.kind === "topic" ? "专题" : "分组";
   return <Modal title={`${item ? "编辑" : "新增"}${name}`} close={close} wide={editor.kind === "question"}>
     <form onSubmit={event => { event.preventDefault(); const words = parseMemoryKeywords(keywords); if (words.length > 100 || words.some(word => word.length > 100)) { setFormError("记忆关键词最多 100 条，每条不超过 100 字。"); return; } if (title.trim()) save({ title: title.trim(), answer: answer.trim(), keywords: words, subtitle: subtitle.trim(), period: period.trim() }); }}>
@@ -65,7 +65,7 @@ export default function Home() {
   const [reveal, setReveal] = useState(false);
   const [hint, setHint] = useState(false);
   const [incoming, setIncoming] = useState<StudyData | null>(null);
-  const [deletion, setDeletion] = useState<{ kind: "topic" | "question"; id: string; title: string } | null>(null);
+  const [deletion, setDeletion] = useState<{ kind: StudyNodeKind | "answer"; id: string; title: string } | null>(null);
   const [toast, setToast] = useState("");
   const [undoData, setUndoData] = useState<StudyData | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -100,7 +100,13 @@ export default function Home() {
   function saveEditor(values: { title: string; answer: string; keywords: string[]; subtitle: string; period: string }) {
     if (!editor) return;
     const id = crypto.randomUUID();
-    if (editor.kind === "group") mutate(old => ({ ...old, groups: old.groups.map(g => g.id === editor.group.id ? { ...g, title: values.title, subtitle: values.subtitle, period: values.period } : g) }));
+    if (editor.kind === "group") {
+      mutate(old => ({ ...old, groups: editor.group
+        ? old.groups.map(g => g.id === editor.group?.id ? { ...g, title: values.title, subtitle: values.subtitle, period: values.period } : g)
+        : [...old.groups, { id, title: values.title, subtitle: values.subtitle, period: values.period, topics: [] }],
+      }));
+      if (!editor.group) { setActiveGroup(id); setActiveTopic(""); setActiveQuestion(""); }
+    }
     if (editor.kind === "topic") {
       mutate(old => ({ ...old, groups: old.groups.map(g => g.id === editor.groupId ? { ...g, topics: editor.topic ? g.topics.map(t => t.id === editor.topic?.id ? { ...t, title: values.title } : t) : [...g.topics, { id, title: values.title, questions: [] }] } : g) }));
       setActiveTopic(editor.topic?.id ?? id); setActiveQuestion("");
@@ -115,11 +121,12 @@ export default function Home() {
   function removeItem() {
     if (!deletion) return;
     const previous = data;
-    const ids = new Set<string>([deletion.id]);
-    if (deletion.kind === "topic") all.filter(item => item.topic.id === deletion.id).forEach(item => ids.add(item.question.id));
-    const drafts = Object.fromEntries(Object.entries(data.drafts).filter(([key]) => !ids.has(key.slice(key.indexOf(":") + 1))));
-    setData({ ...data, drafts, updatedAt: new Date().toISOString(), groups: data.groups.map(g => ({ ...g, topics: g.topics.filter(t => deletion.kind !== "topic" || t.id !== deletion.id).map(t => ({ ...t, questions: t.questions.filter(q => deletion.kind !== "question" || q.id !== deletion.id) })) })) });
-    setUndoData(previous); setToast(`已删除“${deletion.title}”`); setDeletion(null);
+    const next = deletion.kind === "answer"
+      ? { ...data, groups: data.groups.map(g => ({ ...g, topics: g.topics.map(t => ({ ...t, questions: t.questions.map(q => q.id === deletion.id ? { ...q, answer: "" } : q) })) })) }
+      : deleteStudyNode(data, { kind: deletion.kind, id: deletion.id });
+    if (next === data) { setDeletion(null); return; }
+    setData({ ...next, updatedAt: new Date().toISOString() });
+    setUndoData(previous); setToast(deletion.kind === "answer" ? "已清空标准答案" : `已删除“${deletion.title}”`); setDeletion(null);
   }
   function beginPractice(kind: Practice["kind"]) {
     if (!topic) { notify("先添加一个专题，再开始默写。"); return; }
@@ -132,6 +139,14 @@ export default function Home() {
   const practiceText = data.drafts[practiceKey] ?? "";
   const practiceIndex = practiceEntry ? all.findIndex(item => item.question.id === practiceEntry.question.id) : -1;
   function nextPractice(index: number) { const item = all[index]; if (item) setPractice({ kind: "answer", topicId: item.topic.id, questionId: item.question.id }); }
+  const deletionLabel = deletion?.kind === "group" ? "分组" : deletion?.kind === "topic" ? "专题" : "题目";
+  const deletionGroup = data.groups.find(item => item.id === deletion?.id);
+  const deletionTopic = data.groups.flatMap(item => item.topics).find(item => item.id === deletion?.id);
+  const deletionScope = deletion?.kind === "group"
+    ? `分组内的 ${deletionGroup?.topics.length ?? 0} 个专题、${deletionGroup?.topics.reduce((sum, item) => sum + item.questions.length, 0) ?? 0} 道题目，以及对应的答案、记忆关键词和默写草稿也会一并删除。`
+    : deletion?.kind === "topic"
+      ? `专题内的 ${deletionTopic?.questions.length ?? 0} 道题目，以及对应的答案、记忆关键词和默写草稿也会一并删除。`
+      : "这道题的答案、记忆关键词和默写草稿也会一并删除。";
 
   return <div className={`graph-app theme-${theme}`}>
     <header className="graph-header"><a href="/" className="graph-brand"><span><GitBranch size={21}/></span><strong>研途笔记</strong><small>考研资料整理</small></a><div className="graph-header-right"><label className="graph-search"><Search size={15}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={14}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={15}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={15}/><span>导入</span></button></div></header>
@@ -140,6 +155,9 @@ export default function Home() {
     {saveError && <div className="storage-error" role="alert">{saveError}<button onClick={() => downloadData(data)}>导出当前内容</button></div>}
     {query.trim() && <div className="graph-search-results"><div>搜索结果 · {searchResults.length} 道题</div>{searchResults.map(item => <button key={item.question.id} onClick={() => { selectQuestion(item.topic,item.question,item.group); setDetailOpen(true); }}><span><small>{item.group.title} / {item.topic.title}</small><strong>{item.question.title}</strong></span><ChevronRight size={15}/></button>)}{!searchResults.length && <p>没有找到题目，可选中专题后点击“新增题目”。</p>}</div>}
     <ArchitectureMap data={data} activeTopic={activeTopic} activeQuestion={activeQuestion}
+      addGroup={() => setEditor({kind:"group"})}
+      deleteNode={setDeletion}
+      moveNode={(target, direction) => mutate(old => moveStudyNode(old, target, direction))}
       editGroup={g => setEditor({kind:"group",group:g})}
       addTopic={g => { setActiveGroup(g.id); setEditor({kind:"topic",groupId:g.id}); }}
       editTopic={(g,t) => { setActiveGroup(g.id); setActiveTopic(t.id); setTopicTools({group:g,topic:t}); }}
@@ -155,7 +173,7 @@ export default function Home() {
     {editor && <EditorModal editor={editor} close={() => setEditor(null)} save={saveEditor} />}
     {practice && practiceTopic && <Modal title="默写练习" close={() => setPractice(null)} wide><div className="practice-mode-tabs"><button className={practice.kind === "questions" ? "active" : ""} onClick={() => setPractice({ ...practice, kind: "questions" })}><Network size={15} />默写题目</button><button className={practice.kind === "answer" ? "active" : ""} disabled={!practiceTopic.questions.length} onClick={() => setPractice({ kind: "answer", topicId: practiceTopic.id, questionId: practiceEntry?.question.id ?? practiceTopic.questions[0]?.id })}><PenLine size={15} />默写答案</button></div><div className="practice-prompt"><span>{practice.kind === "questions" ? "根据专题，回想它下面的所有论述题" : `${practiceTopic.title} · 先回忆，再对照`}</span><h3>{practice.kind === "questions" ? practiceTopic.title : practiceEntry?.question.title}</h3></div><label className="field-label practice-writing-label">我的默写<textarea autoFocus className="practice-writing" aria-label="我的默写内容" rows={8} value={practiceText} maxLength={100000} onChange={event => { const value = event.target.value; mutate(old => ({ ...old, drafts: { ...old.drafts, [practiceKey]: value } })); }} /></label><div className="practice-tools"><span>{practiceText.length} 字 · 草稿自动保存{saveError ? "异常" : ""}</span><div>{practice.kind === "answer" && <button className="text-button" onClick={() => setHint(!hint)}><Lightbulb size={14} />{hint ? "收起记忆关键词" : "显示记忆关键词"}</button>}<button className="button small secondary" onClick={() => setReveal(!reveal)}><BookOpen size={15} />{reveal ? "收起对照" : "展开对照"}</button></div></div>{hint && practice.kind === "answer" && <div className="hint-box">{practiceEntry?.question.keywords.length ? <MemoryKeywords keywords={practiceEntry.question.keywords}/> : "还没有记忆关键词，可在编辑题目时填写。"}</div>}{reveal && <div className="comparison"><h4>{practice.kind === "questions" ? "这个专题的题目" : "标准答案"}<span>自行对照，补上遗漏</span></h4>{practice.kind === "questions" ? practiceTopic.questions.length ? <ol>{practiceTopic.questions.map(q => <li key={q.id}>{q.title}</li>)}</ol> : <p>这个专题还没有题目。先添加题目，再练习回忆。</p> : <div className="answer-text">{practiceEntry?.question.answer || "还没有录入标准答案。你可以先保存默写草稿，稍后补充答案再对照。"}</div>}</div>}{reveal && practice.kind === "answer" && practiceEntry && <div className="self-assessment"><span>这次记得怎么样？</span><div>{(["new", "review", "mastered"] as StudyStatus[]).map(status => <button key={status} className={practiceEntry.question.status === status ? "active" : ""} onClick={() => setStatus(practiceEntry.question.id, status)}>{status === "mastered" ? <CheckCheck size={14} /> : <Circle size={12} />}{status === "new" ? "还没记住" : statusLabels[status]}</button>)}</div></div>}<div className="modal-footer practice-footer"><button className="button secondary" onClick={() => setPractice(null)}><Check size={15} />完成并退出</button>{practice.kind === "answer" && <div><button className="icon-button" aria-label="上一题" disabled={practiceIndex <= 0} onClick={() => nextPractice(practiceIndex - 1)}><ArrowLeft size={17} /></button><span>{practiceIndex + 1} / {all.length}</span><button className="button primary small" disabled={practiceIndex >= all.length - 1} onClick={() => nextPractice(practiceIndex + 1)}>下一题<ArrowRight size={15} /></button></div>}</div></Modal>}
     {incoming && <Modal title="导入题库备份" close={() => setIncoming(null)}><p className="dialog-description">备份中有 {incoming.groups.length} 个分组、{getQuestions(incoming).length} 道题。导入会替换此浏览器中的题库、学习进度和默写草稿。</p><p className="import-note">点击导入时，会先下载当前题库作为备份。</p><div className="modal-footer"><button className="button secondary" onClick={() => setIncoming(null)}>取消</button><button className="button primary" onClick={() => { downloadData(data); setData(incoming); setSaveBlocked(false); setIncoming(null); setUndoData(null); setToast("已导入题库，原题库已下载备份"); setActiveGroup(incoming.groups[0].id); setActiveTopic(incoming.groups[0].topics[0]?.id ?? ""); setActiveQuestion(""); }}><Upload size={15} />备份并导入</button></div></Modal>}
-    {deletion && <Modal title={`删除${deletion.kind === "topic" ? "专题" : "题目"}`} close={() => setDeletion(null)}><p className="dialog-description">确定删除“{deletion.title}”？{deletion.kind === "topic" ? "专题内的题目、答案和默写草稿也会一并删除。" : "这道题的答案和默写草稿也会一并删除。"}</p><div className="modal-footer"><button className="button secondary" onClick={() => setDeletion(null)}>取消</button><button className="button danger-button" onClick={removeItem}><Trash2 size={15} />确定删除</button></div></Modal>}
-    {toast && <div className="toast" role="status"><Check size={16} /><span>{toast}</span>{undoData && <button onClick={() => { setData(undoData); setUndoData(null); setToast("已撤销删除"); }}>撤销</button>}<button className="toast-close" aria-label="关闭提示" onClick={() => { setToast(""); setUndoData(null); }}><X size={14} /></button></div>}
+    {deletion && <Modal title={deletion.kind === "answer" ? "清空标准答案" : `删除${deletionLabel}`} close={() => setDeletion(null)}><p className="dialog-description">{deletion.kind === "answer" ? `将清空“${deletion.title}”的标准答案。` : `确定删除“${deletion.title}”？${deletionScope}`}完成后可通过页面下方的“撤销”恢复。</p><div className="modal-footer"><button className="button secondary" onClick={() => setDeletion(null)}>取消</button><button className="button danger-button" onClick={removeItem}><Trash2 size={15} />{deletion.kind === "answer" ? "确定清空" : "确定删除"}</button></div></Modal>}
+    {toast && <div className="toast" role="status"><Check size={16} /><span>{toast}</span>{undoData && <button onClick={() => { setData(undoData); setUndoData(null); setToast("已撤销操作"); }}>撤销</button>}<button className="toast-close" aria-label="关闭提示" onClick={() => { setToast(""); setUndoData(null); }}><X size={14} /></button></div>}
   </div>;
 }
