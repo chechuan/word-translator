@@ -19,47 +19,62 @@ export default function ArchitectureMap(props: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [answers, setAnswers] = useState<Set<string>>(new Set());
-  const [zoom, setZoom] = useState(0.8);
-  const [fitted, setFitted] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const drawingRef = useRef<HTMLDivElement>(null);
-  const zoomRef = useRef(zoom);
-  const zoomAnchor = useRef<{ x: number; y: number; graphX: number; graphY: number } | null>(null);
-  const pan = useRef<{x: number; y: number; left: number; top: number} | null>(null);
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.8 });
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef(camera);
+  const autoFit = useRef(true);
+  const previousSize = useRef({ width: 0, height: 0 });
+  const pan = useRef<{ pointerId: number; x: number; y: number; cameraX: number; cameraY: number } | null>(null);
+  const zoom = camera.zoom;
 
-  useEffect(() => {
-    const viewport = scrollRef.current;
+  function moveCamera(next: typeof camera) {
+    cameraRef.current = next;
+    setCamera(next);
+  }
+
+  function zoomAt(nextZoom: number, point?: { x: number; y: number }) {
+    const viewport = viewportRef.current;
     if (!viewport) return;
-    function wheelZoom(event: WheelEvent) {
-      if (!event.altKey || !event.deltaY) return;
-      const drawing = drawingRef.current;
-      if (!drawing || !viewport) return;
-      event.preventDefault();
-      const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
-      const next = Math.max(0.25, Math.min(1.8, zoomRef.current * Math.exp(-Math.max(-240, Math.min(240, pixels)) * 0.0018)));
-      if (next === zoomRef.current) return;
-      const rect = drawing.getBoundingClientRect();
-      // Read the rendered scale so rapid wheel events can accumulate before React commits.
-      const renderedZoom = rect.width / drawing.offsetWidth;
-      zoomAnchor.current = { x: event.clientX, y: event.clientY, graphX: (event.clientX - rect.left) / renderedZoom, graphY: (event.clientY - rect.top) / renderedZoom };
-      zoomRef.current = next;
-      setZoom(next);
-    }
-    viewport.addEventListener("wheel", wheelZoom, { passive: false });
-    return () => viewport.removeEventListener("wheel", wheelZoom);
-  }, []);
+    const current = cameraRef.current;
+    const next = Math.max(0.1, Math.min(1.8, nextZoom));
+    const anchor = point ?? { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
+    const ratio = next / current.zoom;
+    autoFit.current = false;
+    moveCamera({ x: anchor.x - (anchor.x - current.x) * ratio, y: anchor.y - (anchor.y - current.y) * ratio, zoom: next });
+  }
 
   useLayoutEffect(() => {
-    zoomRef.current = zoom;
-    const anchor = zoomAnchor.current;
-    const viewport = scrollRef.current;
-    const drawing = drawingRef.current;
-    if (!anchor || !viewport || !drawing) return;
-    const rect = drawing.getBoundingClientRect();
-    viewport.scrollLeft += rect.left + anchor.graphX * zoom - anchor.x;
-    viewport.scrollTop += rect.top + anchor.graphY * zoom - anchor.y;
-    zoomAnchor.current = null;
-  }, [zoom]);
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const measure = () => setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    function wheel(event: WheelEvent) {
+      if (!viewport || (!event.deltaX && !event.deltaY)) return;
+      event.preventDefault();
+      const deltaX = event.deltaX * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientWidth : 1);
+      const deltaY = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
+      if (event.altKey || event.ctrlKey) {
+        const rect = viewport.getBoundingClientRect();
+        const pixels = Math.max(-240, Math.min(240, deltaY || deltaX));
+        zoomAt(cameraRef.current.zoom * Math.exp(-pixels * 0.0018), { x: event.clientX - rect.left, y: event.clientY - rect.top });
+      } else {
+        autoFit.current = false;
+        const current = cameraRef.current;
+        moveCamera({ ...current, x: current.x - deltaX, y: current.y - deltaY });
+      }
+    }
+    viewport.addEventListener("wheel", wheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", wheel);
+  }, []);
   const nodes: MapNode[] = [];
   const lines: { from: MapNode; to: MapNode; color: string }[] = [];
   let cursor = 38;
@@ -103,32 +118,57 @@ export default function ArchitectureMap(props: Props) {
   nodes.filter(node => node.type === "group").forEach(node => lines.push({ from: root, to: node, color: node.theme }));
 
   function fit() {
-    const element = scrollRef.current; if (!element) return;
-    setZoom(Math.max(0.25, Math.min(1.05, (element.clientWidth - 30) / contentWidth, (element.clientHeight - 30) / height)));
-    element.scrollTo({ left: 0, top: 0 });
+    const element = viewportRef.current;
+    if (!element || !element.clientWidth || !element.clientHeight) return;
+    const nextZoom = Math.max(0.1, Math.min(1.05, (element.clientWidth - 48) / contentWidth, (element.clientHeight - 48) / height));
+    autoFit.current = true;
+    moveCamera({ x: (element.clientWidth - contentWidth * nextZoom) / 2, y: (element.clientHeight - height * nextZoom) / 2, zoom: nextZoom });
   }
-  useEffect(() => { if (!fitted) { fit(); setFitted(true); } });
+
+  useLayoutEffect(() => {
+    const last = previousSize.current;
+    if (viewportSize.width && viewportSize.height) {
+      if (autoFit.current) fit();
+      else if (last.width && last.height && (last.width !== viewportSize.width || last.height !== viewportSize.height)) {
+        const current = cameraRef.current;
+        moveCamera({ ...current, x: current.x + (viewportSize.width - last.width) / 2, y: current.y + (viewportSize.height - last.height) / 2 });
+      }
+    }
+    previousSize.current = viewportSize;
+  }, [viewportSize.width, viewportSize.height, contentWidth, height]);
+
   useEffect(() => { if (!props.activeTopic) return; setExpanded(old => new Set([...old, props.activeTopic])); const group = data.groups.find(g => g.topics.some(t => t.id === props.activeTopic)); if (group) setCollapsed(old => { const next = new Set(old); next.delete(group.id); return next; }); }, [props.activeTopic, props.activeQuestion]);
   useEffect(() => { if (props.activeQuestion) setAnswers(old => new Set([...old, props.activeQuestion])); }, [props.activeQuestion]);
-  useEffect(() => { if (!scrollRef.current) return; scrollRef.current.scrollTo({left: Math.max(0, contentWidth * zoom - scrollRef.current.clientWidth + 30), behavior: "smooth"}); }, [contentWidth]);
   function toggle(setter: typeof setExpanded, id: string) { setter(old => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
-    if ((event.target as HTMLElement).closest("button,input,a") || event.button !== 0) return;
-    const element = scrollRef.current; if (!element) return;
-    pan.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
-    element.setPointerCapture(event.pointerId); element.classList.add("panning");
+    if (!event.isPrimary || pan.current || (event.button !== 0 && event.button !== 1)) return;
+    if (event.button === 0 && (event.target as Element).closest("button,input,a")) return;
+    event.preventDefault();
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const current = cameraRef.current;
+    autoFit.current = false;
+    pan.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, cameraX: current.x, cameraY: current.y };
+    viewport.setPointerCapture(event.pointerId);
+    viewport.classList.add("panning");
   }
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (!pan.current || !scrollRef.current) return;
-    scrollRef.current.scrollLeft = pan.current.left - event.clientX + pan.current.x;
-    scrollRef.current.scrollTop = pan.current.top - event.clientY + pan.current.y;
+    const start = pan.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    moveCamera({ ...cameraRef.current, x: start.cameraX + event.clientX - start.x, y: start.cameraY + event.clientY - start.y });
   }
-  function endPan() { pan.current = null; scrollRef.current?.classList.remove("panning"); }
+  function endPan(event: PointerEvent<HTMLDivElement>) {
+    if (pan.current?.pointerId !== event.pointerId) return;
+    pan.current = null;
+    const viewport = viewportRef.current;
+    viewport?.classList.remove("panning");
+    if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+  }
 
   return <section className="architecture-board" aria-label="完整近代史架构图">
     <div className="graph-toolbar"><div className="graph-path"><GitBranch size={16} /><span>总框架</span><ChevronRight size={12}/><span>5 组</span><ChevronRight size={12}/><span>专题</span><ChevronRight size={12}/><span>论述题</span><ChevronRight size={12}/><span>答案</span></div><div><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set(data.groups.flatMap(g => g.topics.map(t => t.id)))); }}><Plus size={13}/>展开题目</button><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set()); setAnswers(new Set()); }}><Minus size={13}/>收起题目</button></div></div>
-    <div className="graph-viewport" ref={scrollRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan}>
-      <div className="graph-space" style={{ width: contentWidth * zoom + 30, height: height * zoom + 30, minWidth: "100%", minHeight: "100%", "--scaled-width": `${contentWidth * zoom}px` } as CSSProperties}><div ref={drawingRef} className="graph-drawing" style={{ width: contentWidth, height, transform: `scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px` } as CSSProperties}>
+    <div className="graph-viewport" ref={viewportRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan} onLostPointerCapture={endPan} style={{ backgroundPosition: `${camera.x}px ${camera.y}px` }}>
+      <div className="graph-space"><div className="graph-drawing" style={{ width: contentWidth, height, transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px` } as CSSProperties}>
         <svg width={contentWidth} height={height} className="graph-lines" aria-hidden="true">{lines.map(({ from, to, color }) => { const x1 = from.x + from.width, y1 = from.y + from.height / 2, x2 = to.x, y2 = to.y + to.height / 2; return <path key={`${from.key}-${to.key}`} className={`theme-${color}`} d={`M ${x1} ${y1} C ${x1 + (x2-x1)/2} ${y1}, ${x2 - (x2-x1)/2} ${y2}, ${x2} ${y2}`} />; })}</svg>
         {nodes.map(node => <div key={node.key} className={`graph-node graph-${node.type} theme-${node.theme} ${props.activeQuestion === node.question?.id && node.type === "question" ? "selected" : ""}`} style={{ left: node.x, top: node.y, width: node.width, height: node.height }}>
           {node.type === "root" && <><GitBranch size={23}/><strong>中国近现代史</strong><span>我的论述题架构</span></>}
@@ -139,6 +179,6 @@ export default function ArchitectureMap(props: Props) {
         </div>)}
       </div></div>
     </div>
-    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点节点展开</strong><span> · </span>点 ＋ 新增<span> · </span>拖动空白处移动<span> · </span>⌥ / Alt＋滚轮缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => setZoom(z => Math.max(.25, z-.1))}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => setZoom(z => Math.min(1.8,z+.1))}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => setZoom(1)}><Maximize2 size={16}/></button></div></div>
+    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点节点展开</strong><span> · </span>点 ＋ 新增<span> · </span>按住空白处自由拖动<span> · </span>⌥ / Alt＋滚轮缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
   </section>;
 }

@@ -3,7 +3,7 @@
 - Next.js 15 / React 19 / TypeScript，页面为客户端交互，服务端预渲染初始框架。
 - `lib/study.ts` 定义题库模型、初始框架、搜索和 Zod 导入校验。
 - `app/architecture-map.tsx` 实现五组完整架构图、逐级展开、答案节点、画布拖动和缩放。`app/page.tsx` 负责题目编辑、默写、自评和 JSON 导入导出。
-- `app/globals.css` 提供响应式布局，整张图自适应初始画布，支持横向和纵向滚动、空白区拖动及缩放。
+- `app/globals.css` 提供响应式布局，画布使用独立的平移和缩放坐标，拖动不受内容大小或滚动边界限制。ResizeObserver 在自动适应模式下重算整图视野；手动移动后，窗口缩放保留视图中心。普通滚轮平移，Option / Alt + 滚轮按指针位置缩放。
 - localStorage key 为 `shishi-history-v1`，版本号为 1；题库、草稿、自评统一保存。首次读取成功后才允许写入，读取失败不会覆盖原数据。
 - 所有题目和答案均以 React 文本渲染，不执行用户输入 HTML；JSON 导入限制为 10 MB 并验证全局 ID 唯一性。
 - 不依赖翻译接口、模型密钥、数据库或登录服务。旧翻译 API 已移除。
