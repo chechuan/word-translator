@@ -41,7 +41,7 @@ function downloadData(data: StudyData) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = url; anchor.download = `拾史题库-${new Date().toLocaleDateString("sv-SE")}.json`; anchor.click();
+  anchor.href = url; anchor.download = `研途笔记题库-${new Date().toLocaleDateString("sv-SE")}.json`; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -130,8 +130,8 @@ export default function Home() {
   function nextPractice(index: number) { const item = all[index]; if (item) setPractice({ kind: "answer", topicId: item.topic.id, questionId: item.question.id }); }
 
   return <div className={`graph-app theme-${theme}`}>
-    <header className="graph-header"><a href="/" className="graph-brand"><span><GitBranch size={21}/></span><strong>近代史架构图</strong><small>把知识连起来</small></a><div className="graph-header-right"><label className="graph-search"><Search size={15}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={14}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={15}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={15}/><span>导入</span></button></div></header>
-    <div className="graph-intro"><span><strong>中国近现代史</strong><span> / </span>{data.groups.length} 组 · {data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · {all.length} 道论述题</span><span className={`save-status ${saveError ? "save-error" : ""}`}><span/>{loaded ? saveError ? "保存异常" : "已保存在此浏览器" : "正在读取题库"}</span></div>
+    <header className="graph-header"><a href="/" className="graph-brand"><span><GitBranch size={21}/></span><strong>研途笔记</strong><small>考研资料整理</small></a><div className="graph-header-right"><label className="graph-search"><Search size={15}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={14}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={15}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={15}/><span>导入</span></button></div></header>
+    <div className="graph-intro"><span><strong>考研资料</strong><span> / </span>{data.groups.length} 组 · {data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · {all.length} 道论述题</span><span className={`save-status ${saveError ? "save-error" : ""}`}><span/>{loaded ? saveError ? "保存异常" : "已保存在此浏览器" : "正在读取题库"}</span></div>
     <input hidden ref={fileRef} type="file" accept=".json,application/json" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { if (file.size > 10_000_000) throw new Error("题库文件过大，请控制在 10 MB 以内。"); setIncoming(parseStudyData(await file.text())); } catch (error) { notify(error instanceof Error ? error.message : "导入失败，请重试。"); } }}/>
     {saveError && <div className="storage-error" role="alert">{saveError}<button onClick={() => downloadData(data)}>导出当前内容</button></div>}
     {query.trim() && <div className="graph-search-results"><div>搜索结果 · {searchResults.length} 道题</div>{searchResults.map(item => <button key={item.question.id} onClick={() => { selectQuestion(item.topic,item.question,item.group); setDetailOpen(true); }}><span><small>{item.group.title} / {item.topic.title}</small><strong>{item.question.title}</strong></span><ChevronRight size={15}/></button>)}{!searchResults.length && <p>没有找到题目，先在专题的 ＋ 号里添加。</p>}</div>}
