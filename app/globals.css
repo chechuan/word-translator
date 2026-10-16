@@ -27,8 +27,12 @@
 .text-button:hover{color:#4b6b3d}
 .danger{color:#b2968b}
 .danger:hover{color:#a35144}
-.keyword-tags{display:flex;flex-wrap:wrap;gap:6px}
-.keyword-tags span{font-size:10px;padding:4px 7px;background:#f4f6ef;color:#93a080;border-radius:4px}
+.memory-keywords-section{margin:18px 0;padding:16px 18px;background:#f4f6ef;border-radius:7px}
+.memory-keywords-section h4{font-size:12px;font-weight:500;color:#7b8b6d;margin:0 0 10px}
+.memory-keywords{list-style:none;margin:0;padding:0;font-size:12px;line-height:1.9}
+.memory-keywords li{display:flex;align-items:flex-start;gap:5px;margin:5px 0}
+.memory-keywords li>span:first-child{flex-shrink:0;color:#8c9e7c}
+.memory-keywords li>span:last-child{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .modal{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 60px);overflow-y:auto;margin:auto;border:1px solid #e0e6d6;background:#fdfefb;padding:24px;border-radius:12px;color:var(--ink);box-shadow:0 20px 100px #1c301f2a}
 .modal-wide{width:min(690px,calc(100vw - 32px))}
 .modal::backdrop{background:#24302665;backdrop-filter:blur(4px)}

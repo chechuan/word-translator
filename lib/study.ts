@@ -26,6 +26,22 @@ export type StudyGroup = z.infer<typeof groupSchema>;
 export type StudyData = z.infer<typeof studySchema>;
 export const STORAGE_KEY = "shishi-history-v1";
 
+export function parseMemoryKeywords(text: string): string[] {
+  return text.split(/\r?\n|(?=[（(]\d{1,3}[）)])/u)
+    .map(word => word.replace(/^[（(]\d{1,3}[）)]\s*/u, "").trim())
+    .filter(Boolean);
+}
+
+export function removeUnusedExample(data: StudyData): StudyData {
+  return { ...data, groups: data.groups.map(group => ({ ...group, topics: group.topics.map(topic => ({
+    ...topic, questions: topic.questions.filter(question => !(
+      question.id === "question-example" && question.title === "辛亥革命的历史意义" &&
+      !question.answer && !question.keywords.length && question.status === "new" &&
+      !data.drafts[`answer:${question.id}`]?.trim() && !data.drafts[`topic:${topic.id}`]?.trim()
+    )),
+  })) })) };
+}
+
 export function parseStudyData(raw: string): StudyData {
   if (raw.length > 10_000_000) throw new Error("题库文件过大，请控制在 10 MB 以内。");
   let value: unknown;
@@ -69,7 +85,7 @@ export function makeInitialData(): StudyData {
     version: 1, drafts: {}, updatedAt: "",
     groups: definitions.map((group, gi) => ({ ...group, id: `group-${gi + 1}`, topics: group.topics.map((title, ti) => ({
       id: `topic-${gi + 1}-${ti + 1}`, title,
-      questions: title === "辛亥革命" ? [{ id: "question-example", title: "辛亥革命的历史意义", answer: "", keywords: [], status: "new" }] : [],
+      questions: [],
     })) })),
   };
 }

@@ -65,15 +65,9 @@ export default function ArchitectureMap(props: Props) {
       event.preventDefault();
       const deltaX = event.deltaX * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientWidth : 1);
       const deltaY = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
-      if (event.altKey || event.ctrlKey) {
-        const rect = viewport.getBoundingClientRect();
-        const pixels = Math.max(-240, Math.min(240, deltaY || deltaX));
-        zoomAt(cameraRef.current.zoom * Math.exp(-pixels * 0.0018), { x: event.clientX - rect.left, y: event.clientY - rect.top });
-      } else {
-        autoFit.current = false;
-        const current = cameraRef.current;
-        moveCamera({ ...current, x: current.x - deltaX, y: current.y - deltaY });
-      }
+      const rect = viewport.getBoundingClientRect();
+      const pixels = Math.max(-240, Math.min(240, deltaY || deltaX));
+      zoomAt(cameraRef.current.zoom * Math.exp(-pixels * 0.0018), { x: event.clientX - rect.left, y: event.clientY - rect.top });
     }
     viewport.addEventListener("wheel", wheel, { passive: false });
     return () => viewport.removeEventListener("wheel", wheel);
@@ -196,7 +190,7 @@ export default function ArchitectureMap(props: Props) {
           {node.type === "group" && node.group && <><button className="graph-node-main" aria-pressed={selectedNodeKey === node.key}><span className="graph-group-label"><b>{String(node.index + 1).padStart(2,"0")}</b>{node.group.title}</span><strong>{node.group.subtitle}</strong></button><button className="graph-branch-toggle" aria-label={`${collapsed.has(node.group.id) ? "展开" : "收起"}${node.group.title}`} aria-expanded={!collapsed.has(node.group.id)} onClick={() => toggle(setCollapsed,node.group!.id)}>{collapsed.has(node.group.id) ? <Plus size={11}/> : <Minus size={11}/>}</button></>}
           {node.type === "topic" && node.topic && <><button className="graph-node-main" aria-pressed={selectedNodeKey === node.key}><strong>{node.topic.title}</strong><span className="graph-topic-count">{node.topic.questions.length} 题</span></button>{node.topic.questions.length > 0 && <button className="graph-branch-toggle" aria-label={`${expanded.has(node.topic.id) ? "收起" : "展开"}${node.topic.title}题目`} aria-expanded={expanded.has(node.topic.id)} onClick={() => toggle(setExpanded,node.topic!.id)}>{expanded.has(node.topic.id) ? <Minus size={11}/> : <Plus size={11}/>}</button>}</>}
           {node.type === "question" && node.question && <><button className="graph-node-main" aria-pressed={selectedNodeKey === node.key}><span className="graph-question-number">{node.index + 1}.</span><strong>{node.question.title}</strong><span className={`status-dot status-${node.question.status}`} title={statusLabels[node.question.status]}/></button><button className="graph-branch-toggle" aria-label={`${answers.has(node.question.id) ? "收起" : "展开"}答案`} aria-expanded={answers.has(node.question.id)} onClick={() => toggle(setAnswers,node.question!.id)}>{answers.has(node.question.id) ? <Minus size={11}/> : <Plus size={11}/>}</button></>}
-          {node.type === "answer" && node.question && <><div className="graph-answer-label"><BookOpen size={14}/>答案要点</div><button className="graph-answer-content" onClick={() => props.openQuestion(node.group!,node.topic!,node.question!)}>{node.question.answer || "点击这里，录入你的标准答案。\n建议按 1、2、3 分条整理。"}</button><button className="graph-answer-open" onClick={() => props.openQuestion(node.group!,node.topic!,node.question!)}>{node.question.answer ? "查看完整答案" : "添加标准答案"}<ChevronRight size={12}/></button></>}
+          {node.type === "answer" && node.question && <><div className="graph-answer-label"><BookOpen size={14}/>答案要点</div><button className="graph-answer-content" onClick={() => props.openQuestion(node.group!,node.topic!,node.question!)}>{node.question.answer || "尚未填写标准答案"}</button><button className="graph-answer-open" onClick={() => props.openQuestion(node.group!,node.topic!,node.question!)}>{node.question.answer ? "查看完整答案" : "添加标准答案"}<ChevronRight size={12}/></button></>}
         </div>)}
       </div></div>
     </div>
@@ -208,6 +202,6 @@ export default function ArchitectureMap(props: Props) {
           {(selectedNode.type === "question" || selectedNode.type === "answer") && <><button className="button primary" onClick={() => props.editQuestion(selectedNode.group!,selectedNode.topic!,selectedNode.question!)}><Pencil size={17}/>{selectedNode.type === "answer" ? "编辑答案" : "编辑题目与答案"}</button><button className="button secondary" onClick={() => props.practiceQuestion(selectedNode.topic!,selectedNode.question!)}><PenLine size={17}/>默写答案</button><button className="button secondary" onClick={() => props.openQuestion(selectedNode.group!,selectedNode.topic!,selectedNode.question!)}><BookOpen size={17}/>查看答案</button></>}
         </div>
       </div>}
-    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点击节点选中</strong><span> · </span>＋/－ 展开收起<span> · </span>大按钮新增 / 编辑 / 默写<span> · </span>按住空白处自由拖动<span> · </span>⌥ / Alt＋滚轮缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
+    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点击节点选中</strong><span> · </span>＋/－ 展开收起<span> · </span>大按钮新增 / 编辑 / 默写<span> · </span>按住空白处自由拖动<span> · </span>滚轮直接缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
   </section>;
 }
