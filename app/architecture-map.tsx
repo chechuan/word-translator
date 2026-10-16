@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { BookOpen, ChevronRight, Focus, GitBranch, Maximize2, Minus, Pencil, PenLine, Plus, ZoomIn, ZoomOut } from "lucide-react";
 import { statusLabels, type Question, type StudyData, type StudyGroup, type Topic } from "@/lib/study";
 
@@ -22,7 +22,44 @@ export default function ArchitectureMap(props: Props) {
   const [zoom, setZoom] = useState(0.8);
   const [fitted, setFitted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const drawingRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(zoom);
+  const zoomAnchor = useRef<{ x: number; y: number; graphX: number; graphY: number } | null>(null);
   const pan = useRef<{x: number; y: number; left: number; top: number} | null>(null);
+
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    function wheelZoom(event: WheelEvent) {
+      if (!event.altKey || !event.deltaY) return;
+      const drawing = drawingRef.current;
+      if (!drawing || !viewport) return;
+      event.preventDefault();
+      const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
+      const next = Math.max(0.25, Math.min(1.8, zoomRef.current * Math.exp(-Math.max(-240, Math.min(240, pixels)) * 0.0018)));
+      if (next === zoomRef.current) return;
+      const rect = drawing.getBoundingClientRect();
+      // Read the rendered scale so rapid wheel events can accumulate before React commits.
+      const renderedZoom = rect.width / drawing.offsetWidth;
+      zoomAnchor.current = { x: event.clientX, y: event.clientY, graphX: (event.clientX - rect.left) / renderedZoom, graphY: (event.clientY - rect.top) / renderedZoom };
+      zoomRef.current = next;
+      setZoom(next);
+    }
+    viewport.addEventListener("wheel", wheelZoom, { passive: false });
+    return () => viewport.removeEventListener("wheel", wheelZoom);
+  }, []);
+
+  useLayoutEffect(() => {
+    zoomRef.current = zoom;
+    const anchor = zoomAnchor.current;
+    const viewport = scrollRef.current;
+    const drawing = drawingRef.current;
+    if (!anchor || !viewport || !drawing) return;
+    const rect = drawing.getBoundingClientRect();
+    viewport.scrollLeft += rect.left + anchor.graphX * zoom - anchor.x;
+    viewport.scrollTop += rect.top + anchor.graphY * zoom - anchor.y;
+    zoomAnchor.current = null;
+  }, [zoom]);
   const nodes: MapNode[] = [];
   const lines: { from: MapNode; to: MapNode; color: string }[] = [];
   let cursor = 38;
@@ -91,7 +128,7 @@ export default function ArchitectureMap(props: Props) {
   return <section className="architecture-board" aria-label="完整近代史架构图">
     <div className="graph-toolbar"><div className="graph-path"><GitBranch size={16} /><span>总框架</span><ChevronRight size={12}/><span>5 组</span><ChevronRight size={12}/><span>专题</span><ChevronRight size={12}/><span>论述题</span><ChevronRight size={12}/><span>答案</span></div><div><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set(data.groups.flatMap(g => g.topics.map(t => t.id)))); }}><Plus size={13}/>展开题目</button><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set()); setAnswers(new Set()); }}><Minus size={13}/>收起题目</button></div></div>
     <div className="graph-viewport" ref={scrollRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan}>
-      <div className="graph-space" style={{ width: contentWidth * zoom + 30, height: height * zoom + 30, minWidth: "100%", minHeight: "100%", "--scaled-width": `${contentWidth * zoom}px` } as CSSProperties}><div className="graph-drawing" style={{ width: contentWidth, height, transform: `scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px` } as CSSProperties}>
+      <div className="graph-space" style={{ width: contentWidth * zoom + 30, height: height * zoom + 30, minWidth: "100%", minHeight: "100%", "--scaled-width": `${contentWidth * zoom}px` } as CSSProperties}><div ref={drawingRef} className="graph-drawing" style={{ width: contentWidth, height, transform: `scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px` } as CSSProperties}>
         <svg width={contentWidth} height={height} className="graph-lines" aria-hidden="true">{lines.map(({ from, to, color }) => { const x1 = from.x + from.width, y1 = from.y + from.height / 2, x2 = to.x, y2 = to.y + to.height / 2; return <path key={`${from.key}-${to.key}`} className={`theme-${color}`} d={`M ${x1} ${y1} C ${x1 + (x2-x1)/2} ${y1}, ${x2 - (x2-x1)/2} ${y2}, ${x2} ${y2}`} />; })}</svg>
         {nodes.map(node => <div key={node.key} className={`graph-node graph-${node.type} theme-${node.theme} ${props.activeQuestion === node.question?.id && node.type === "question" ? "selected" : ""}`} style={{ left: node.x, top: node.y, width: node.width, height: node.height }}>
           {node.type === "root" && <><GitBranch size={23}/><strong>中国近现代史</strong><span>我的论述题架构</span></>}
@@ -102,6 +139,6 @@ export default function ArchitectureMap(props: Props) {
         </div>)}
       </div></div>
     </div>
-    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点节点展开</strong><span> · </span>点 ＋ 新增<span> · </span>拖动空白处移动</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => setZoom(z => Math.max(.25, z-.1))}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => setZoom(z => Math.min(1.8,z+.1))}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => setZoom(1)}><Maximize2 size={16}/></button></div></div>
+    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点节点展开</strong><span> · </span>点 ＋ 新增<span> · </span>拖动空白处移动<span> · </span>⌥ / Alt＋滚轮缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => setZoom(z => Math.max(.25, z-.1))}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => setZoom(z => Math.min(1.8,z+.1))}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => setZoom(1)}><Maximize2 size={16}/></button></div></div>
   </section>;
 }
