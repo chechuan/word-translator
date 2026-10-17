@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Check, CheckCheck, ChevronDown, ChevronRight, Circle, GitBranch, Lightbulb, Network, Pencil, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import ArchitectureMap from "./architecture-map";
-import { deleteStudyNode, getQuestions, makeInitialData, moveStudyNode, parseMemoryKeywords, parseStudyData, removeUnusedExample, searchQuestions, statusLabels, STORAGE_KEY, type Question, type StudyData, type StudyGroup, type StudyNodeKind, type StudyStatus, type Topic } from "@/lib/study";
+import { useCloudStudy } from "./use-cloud-study";
+import { deleteStudyNode, getQuestions, moveStudyNode, parseMemoryKeywords, parseStudyData, searchQuestions, statusLabels, type Question, type StudyData, type StudyGroup, type StudyNodeKind, type StudyStatus, type Topic } from "@/lib/study";
 
 type Editor = { kind: "question"; topicId: string; question?: Question } | { kind: "topic"; groupId: string; topic?: Topic } | { kind: "group"; group?: StudyGroup };
 type Practice = { kind: "questions" | "answer"; topicId: string; questionId?: string };
@@ -52,10 +53,7 @@ function downloadData(data: StudyData) {
 export default function Home() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [topicTools, setTopicTools] = useState<{group: StudyGroup; topic: Topic} | null>(null);
-  const [data, setData] = useState<StudyData>(makeInitialData);
-  const [loaded, setLoaded] = useState(false);
-  const [saveBlocked, setSaveBlocked] = useState(false);
-  const [saveError, setSaveError] = useState("");
+  const { data, setData, loaded, saveError, setSaveBlocked, status: syncStatus, syncError, conflict, useRemote, useLocal, retry, remoteGeneration } = useCloudStudy();
   const [activeGroup, setActiveGroup] = useState("group-1");
   const [activeTopic, setActiveTopic] = useState("");
   const [activeQuestion, setActiveQuestion] = useState("");
@@ -70,17 +68,8 @@ export default function Home() {
   const [undoData, setUndoData] = useState<StudyData | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) setData(removeUnusedExample(parseStudyData(raw))); }
-    catch { setSaveBlocked(true); setSaveError("本地题库读取失败，原数据已保留。请先检查浏览器存储，或导入已有备份恢复。"); }
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (!loaded || saveBlocked) return;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); setSaveError(""); }
-    catch { setSaveError("浏览器未能保存，可能是存储空间不足。请立即导出题库备份。"); }
-  }, [data, loaded, saveBlocked]);
   useEffect(() => { if (!toast || undoData) return; const timer = window.setTimeout(() => setToast(""), 4200); return () => clearTimeout(timer); }, [toast, undoData]);
+  useEffect(() => { if (remoteGeneration) { setUndoData(null); setToast(""); } }, [remoteGeneration]);
   useEffect(() => { setReveal(false); setHint(false); }, [practice?.kind, practice?.topicId, practice?.questionId]);
 
   const group = data.groups.find(item => item.id === activeGroup) ?? data.groups[0];
@@ -150,9 +139,12 @@ export default function Home() {
 
   return <div className={`graph-app theme-${theme}`}>
     <header className="graph-header"><a href="/" className="graph-brand"><span><GitBranch size={21}/></span><strong>研途笔记</strong><small>考研资料整理</small></a><div className="graph-header-right"><label className="graph-search"><Search size={15}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={14}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={15}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={15}/><span>导入</span></button></div></header>
-    <div className="graph-intro"><span><strong>考研资料</strong><span> / </span>{data.groups.length} 组 · {data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · {all.length} 道论述题</span><span className={`save-status ${saveError ? "save-error" : ""}`}><span/>{loaded ? saveError ? "保存异常" : "已保存在此浏览器" : "正在读取题库"}</span></div>
+    <div className="graph-intro"><span><strong>考研资料</strong><span> / </span>{data.groups.length} 组 · {data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · {all.length} 道论述题</span><span className={`save-status sync-${syncStatus} ${saveError ? "save-error" : ""}`} aria-live="polite"><span/>{!loaded ? "正在读取题库" : saveError ? "本地备份异常" : syncStatus === "synced" ? "云端已同步" : syncStatus === "saving" ? "正在同步到云端…" : syncStatus === "offline" ? "仅本机保存，等待同步" : syncStatus === "conflict" ? "有待确认的同步内容" : "正在连接云端…"}</span></div>
     <input hidden ref={fileRef} type="file" accept=".json,application/json" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { if (file.size > 10_000_000) throw new Error("题库文件过大，请控制在 10 MB 以内。"); setIncoming(parseStudyData(await file.text())); } catch (error) { notify(error instanceof Error ? error.message : "导入失败，请重试。"); } }}/>
     {saveError && <div className="storage-error" role="alert">{saveError}<button onClick={() => downloadData(data)}>导出当前内容</button></div>}
+    {syncError && !conflict && <div className="cloud-notice" role="status"><span>{syncError}</span><button className="button small secondary" onClick={retry}>重试同步</button></div>}
+    {conflict && <div className="cloud-notice cloud-conflict" role="alert"><p>此浏览器和云端各有一份不同的题库。两份内容目前都保留，请选择要继续使用的内容。</p><div><button className="button small secondary" disabled={!conflict.data} onClick={() => { downloadData(data); useRemote(); }}>备份本机并使用云端</button><button className="button small primary" onClick={() => { if (conflict.data) downloadData(conflict.data); useLocal(); }}>备份云端并上传本机</button></div></div>}
+
     {query.trim() && <div className="graph-search-results"><div>搜索结果 · {searchResults.length} 道题</div>{searchResults.map(item => <button key={item.question.id} onClick={() => { selectQuestion(item.topic,item.question,item.group); setDetailOpen(true); }}><span><small>{item.group.title} / {item.topic.title}</small><strong>{item.question.title}</strong></span><ChevronRight size={15}/></button>)}{!searchResults.length && <p>没有找到题目，可选中专题后点击“新增题目”。</p>}</div>}
     <ArchitectureMap data={data} activeTopic={activeTopic} activeQuestion={activeQuestion}
       addGroup={() => setEditor({kind:"group"})}

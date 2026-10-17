@@ -33,6 +33,10 @@
 .memory-keywords li{display:flex;align-items:flex-start;gap:5px;margin:5px 0}
 .memory-keywords li>span:first-child{flex-shrink:0;color:#8c9e7c}
 .memory-keywords li>span:last-child{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.cloud-notice{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 16px 12px;padding:12px 15px;border:1px solid #e6d9b7;border-radius:7px;background:#fffaf0;color:#8d764c;font-size:12px;line-height:1.8;flex-shrink:0}
+.cloud-notice>div{display:flex;flex-wrap:wrap;gap:8px}
+.graph-intro .sync-offline>span,.graph-intro .sync-conflict>span{background:#c29d5a}
+.graph-intro .sync-saving>span,.graph-intro .sync-connecting>span{background:#91a8b9}
 .modal{width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 60px);overflow-y:auto;margin:auto;border:1px solid #e0e6d6;background:#fdfefb;padding:24px;border-radius:12px;color:var(--ink);box-shadow:0 20px 100px #1c301f2a}
 .modal-wide{width:min(690px,calc(100vw - 32px))}
 .modal::backdrop{background:#24302665;backdrop-filter:blur(4px)}
