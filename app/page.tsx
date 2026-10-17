@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Check, CheckCheck, ChevronDown, ChevronRight, Circle, GitBranch, Lightbulb, Network, Pencil, PenLine, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, ArrowRight, BookOpen, Check, CheckCheck, ChevronDown, ChevronRight, Circle, GitBranch, Lightbulb, Minimize2, Network, Pencil, PenLine, Scan, Search, Trash2, Upload, X } from "lucide-react";
 import ArchitectureMap from "./architecture-map";
 import MemoryKeywords from "./memory-keywords";
 import { useCloudStudy } from "./use-cloud-study";
@@ -55,6 +55,7 @@ export default function Home() {
   const [activeTopic, setActiveTopic] = useState("");
   const [activeQuestion, setActiveQuestion] = useState("");
   const [query, setQuery] = useState("");
+  const [focusMode, setFocusMode] = useState(false);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [practice, setPractice] = useState<Practice | null>(null);
   const [reveal, setReveal] = useState(false);
@@ -64,6 +65,24 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [undoData, setUndoData] = useState<StudyData | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try { setFocusMode(localStorage.getItem("yantu-map-focus-mode") === "true"); } catch { /* The canvas works without saved preferences. */ }
+  }, []);
+  function changeFocusMode(next: boolean) {
+    setFocusMode(next);
+    setQuery("");
+    try { localStorage.setItem("yantu-map-focus-mode", String(next)); } catch { /* Keep this session's view. */ }
+  }
+  useEffect(() => {
+    if (!focusMode) return;
+    const exitFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector("dialog[open]") || (event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable=true]"))) return;
+      changeFocusMode(false);
+    };
+    window.addEventListener("keydown", exitFocus);
+    return () => window.removeEventListener("keydown", exitFocus);
+  }, [focusMode]);
 
   useEffect(() => { if (!toast || undoData) return; const timer = window.setTimeout(() => setToast(""), 4200); return () => clearTimeout(timer); }, [toast, undoData]);
   useEffect(() => { if (remoteGeneration) { setUndoData(null); setToast(""); } }, [remoteGeneration]);
@@ -134,16 +153,21 @@ export default function Home() {
       ? `专题内的 ${deletionTopic?.questions.length ?? 0} 道题目，以及对应的答案、记忆关键词和默写草稿也会一并删除。`
       : "这道题的答案、记忆关键词和默写草稿也会一并删除。";
 
-  return <div className={`graph-app theme-${theme}`}>
-    <header className="graph-header"><a href="/" className="graph-brand"><span><GitBranch size={21}/></span><strong>研途笔记</strong><small>考研资料整理</small></a><div className="graph-header-right"><label className="graph-search"><Search size={15}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={14}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={15}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={15}/><span>导入</span></button></div></header>
-    <div className="graph-intro"><span><strong>考研资料</strong><span> / </span>{data.groups.length} 组 · {data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · {all.length} 道论述题</span><span className={`save-status sync-${syncStatus} ${saveError ? "save-error" : ""}`} aria-live="polite"><span/>{!loaded ? "正在读取题库" : saveError ? "本地备份异常" : syncStatus === "synced" ? "云端已同步" : syncStatus === "saving" ? "正在同步到云端…" : syncStatus === "offline" ? "仅本机保存，等待同步" : syncStatus === "conflict" ? "有待确认的同步内容" : "正在连接云端…"}</span></div>
+  return <div className={`graph-app theme-${theme}${focusMode ? " is-focused" : ""}`}>
+    <header className="graph-header">
+      <div className="graph-header-left"><a href="/" className="graph-brand"><span><GitBranch size={19}/></span><strong>研途笔记</strong></a><span className="graph-summary" title={`${data.groups.length} 组 · ${data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · ${all.length} 道论述题`}>{data.groups.length} 组 · {all.length} 题</span><span className={`save-status graph-sync sync-${syncStatus} ${saveError ? "save-error" : ""}`} aria-live="polite"><span/><span className="graph-sync-label">{!loaded ? "正在读取题库" : saveError ? "本地备份异常" : syncStatus === "synced" ? "云端已同步" : syncStatus === "saving" ? "正在同步到云端…" : syncStatus === "offline" ? "仅本机保存，等待同步" : syncStatus === "conflict" ? "有待确认的同步内容" : "正在连接云端…"}</span></span></div>
+      <div className="graph-header-right"><label className="graph-search"><Search size={16}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={16}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={16}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={16}/><span>导入</span></button><button className="button small secondary graph-focus-button" aria-label="进入专注模式" title="隐藏顶部工具栏，让架构图占满窗口" onClick={() => changeFocusMode(true)}><Scan size={17}/><span>专注</span></button></div>
+    </header>
+    {focusMode && <button className="graph-exit-focus button secondary" onClick={() => changeFocusMode(false)} title="退出专注模式（Esc）"><Minimize2 size={17}/><span>退出专注</span></button>}
     <input hidden ref={fileRef} type="file" accept=".json,application/json" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { if (file.size > 10_000_000) throw new Error("题库文件过大，请控制在 10 MB 以内。"); setIncoming(parseStudyData(await file.text())); } catch (error) { notify(error instanceof Error ? error.message : "导入失败，请重试。"); } }}/>
+    <div className="graph-notices">
     {saveError && <div className="storage-error" role="alert">{saveError}<button onClick={() => downloadData(data)}>导出当前内容</button></div>}
     {syncError && !conflict && <div className="cloud-notice" role="status"><span>{syncError}</span><button className="button small secondary" onClick={retry}>重试同步</button></div>}
     {conflict && <div className="cloud-notice cloud-conflict" role="alert"><p>此浏览器和云端各有一份不同的题库。两份内容目前都保留，请选择要继续使用的内容。</p><div><button className="button small secondary" disabled={!conflict.data} onClick={() => { downloadData(data); useRemote(); }}>备份本机并使用云端</button><button className="button small primary" onClick={() => { if (conflict.data) downloadData(conflict.data); useLocal(); }}>备份云端并上传本机</button></div></div>}
+    </div>
 
     {query.trim() && <div className="graph-search-results"><div>搜索结果 · {searchResults.length} 道题</div>{searchResults.map(item => <button key={item.question.id} onClick={() => { selectQuestion(item.topic,item.question,item.group); setDetailOpen(true); }}><span><small>{item.group.title} / {item.topic.title}</small><strong>{item.question.title}</strong></span><ChevronRight size={15}/></button>)}{!searchResults.length && <p>没有找到题目，可选中专题后点击“新增题目”。</p>}</div>}
-    <ArchitectureMap data={data} activeTopic={activeTopic} activeQuestion={activeQuestion}
+    <ArchitectureMap data={data} activeTopic={activeTopic} activeQuestion={activeQuestion} focusMode={focusMode}
       addGroup={() => setEditor({kind:"group"})}
       deleteNode={setDeletion}
       moveNode={(target, direction) => mutate(old => moveStudyNode(old, target, direction))}

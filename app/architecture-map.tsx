@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { ArrowDown, ArrowUp, BookOpen, ChevronDown, ChevronRight, Focus, GitBranch, Lightbulb, Maximize2, Minus, Pencil, PenLine, Plus, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, ChevronDown, Focus, GitBranch, Lightbulb, Maximize2, Minus, Pencil, PenLine, Plus, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { statusLabels, type Question, type StudyData, type StudyGroup, type StudyNodeKind, type StudyNodeTarget, type Topic } from "@/lib/study";
 import { CANVAS_WHEEL_MODE_KEY, CanvasTouchGesture, clampCanvasZoom, resolveCanvasWheel, type CanvasWheelMode } from "@/lib/canvas-gestures";
 import MemoryKeywords from "./memory-keywords";
 
 type Props = {
-  data: StudyData; activeTopic: string; activeQuestion: string;
+  data: StudyData; activeTopic: string; activeQuestion: string; focusMode: boolean;
   addGroup: () => void;
   deleteNode: (target: { kind: StudyNodeKind | "answer"; id: string; title: string }) => void;
   moveNode: (target: StudyNodeTarget, direction: -1 | 1) => void;
@@ -184,9 +184,11 @@ export default function ArchitectureMap(props: Props) {
   function fit() {
     const element = viewportRef.current;
     if (!element || !element.clientWidth || !element.clientHeight) return;
-    const nextZoom = Math.max(0.1, Math.min(1.05, (element.clientWidth - 48) / contentWidth, (element.clientHeight - 48) / height));
+    const topInset = props.focusMode ? 56 : 76, bottomInset = 72;
+    const availableHeight = Math.max(80, element.clientHeight - topInset - bottomInset);
+    const nextZoom = Math.max(0.1, Math.min(1.05, (element.clientWidth - 48) / contentWidth, availableHeight / height));
     autoFit.current = true;
-    moveCamera({ x: (element.clientWidth - contentWidth * nextZoom) / 2, y: (element.clientHeight - height * nextZoom) / 2, zoom: nextZoom });
+    moveCamera({ x: (element.clientWidth - contentWidth * nextZoom) / 2, y: topInset + (availableHeight - height * nextZoom) / 2, zoom: nextZoom });
   }
 
   useLayoutEffect(() => {
@@ -199,7 +201,7 @@ export default function ArchitectureMap(props: Props) {
       }
     }
     previousSize.current = viewportSize;
-  }, [viewportSize.width, viewportSize.height, contentWidth, height]);
+  }, [viewportSize.width, viewportSize.height, contentWidth, height, props.focusMode]);
 
   useEffect(() => { if (!props.activeTopic) return; setExpanded(old => new Set([...old, props.activeTopic])); const group = data.groups.find(g => g.topics.some(t => t.id === props.activeTopic)); if (group) setCollapsed(old => { const next = new Set(old); next.delete(group.id); return next; }); }, [props.activeTopic, props.activeQuestion]);
   useEffect(() => { if (props.activeQuestion) setSelectedNodeKey(props.activeQuestion); }, [props.activeQuestion]);
@@ -263,7 +265,6 @@ export default function ArchitectureMap(props: Props) {
   }
 
   return <section className="architecture-board" aria-label="考研知识架构图">
-    <div className="graph-toolbar"><div className="graph-path"><GitBranch size={16} /><span>总框架</span><ChevronRight size={12}/><span>{data.groups.length} 组</span><ChevronRight size={12}/><span>专题</span><ChevronRight size={12}/><span>论述题</span><ChevronRight size={12}/><span>原文 / 关键词</span></div><div><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set(data.groups.flatMap(g => g.topics.map(t => t.id)))); }}><Plus size={13}/>展开题目</button><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set()); setAnswers(new Set()); }}><Minus size={13}/>收起题目</button></div></div>
     <div className="graph-viewport" ref={viewportRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan} onLostPointerCapture={event => { if (event.target === event.currentTarget) endPan(event); }} onClickCapture={event => { if (lastPointerType.current === "touch" && touch.current.didMove && event.detail !== 0) { event.preventDefault(); event.stopPropagation(); } }} style={{ backgroundPosition: `${camera.x}px ${camera.y}px` }}>
       <div className="graph-space"><div ref={drawingRef} className="graph-drawing" style={{ width: contentWidth, height, transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px`, "--control-scale": 1 / zoom } as CSSProperties}>
         <svg width={contentWidth} height={height} className="graph-lines" aria-hidden="true">{lines.map(({ from, to, color }) => { const x1 = from.x + from.width, y1 = from.y + from.height / 2, x2 = to.x, y2 = to.y + to.height / 2; return <path key={`${from.key}-${to.key}`} className={`theme-${color}`} d={`M ${x1} ${y1} C ${x1 + (x2-x1)/2} ${y1}, ${x2 - (x2-x1)/2} ${y2}, ${x2} ${y2}`} />; })}</svg>
@@ -290,6 +291,9 @@ export default function ArchitectureMap(props: Props) {
           {selectedNode.type === "answer" && <button className="button secondary danger" onClick={deleteSelected} disabled={!selectedNode.question?.answer}><Trash2 size={17}/>清空答案</button>}
         </div>
       </div>}
-    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点击节点选中</strong><span className="graph-guide-desktop"> · ＋/－ 展开收起 · 操作栏新增 / 编辑 / 排序 / 删除 · 按住空白处拖动 · 双指滑动移动 · 捏合或 Option＋滚动缩放</span><span className="graph-guide-touch"> · 单指拖动 · 双指缩放</span></span><div className="graph-zoom"><button className="graph-scroll-mode" aria-label={wheelMode === "pan" ? "切换为滚动缩放" : "切换为滚动移动"} aria-pressed={wheelMode === "zoom"} title="默认滚动移动画布，捏合或 Option＋滚动缩放；点击切换滚动模式" onClick={switchWheelMode}>滚动：{wheelMode === "pan" ? "移动" : "缩放"}</button><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
+    <div className="graph-bottom"><div className="graph-zoom" role="toolbar" aria-label="画布工具">
+      <details className="graph-tools"><summary aria-label="图谱工具" title="展开收起题目、操作说明"><SlidersHorizontal size={17}/><span>图谱工具</span></summary><div className="graph-tools-panel"><strong>图谱工具</strong><button onClick={event => { setCollapsed(new Set()); setExpanded(new Set(data.groups.flatMap(g => g.topics.map(t => t.id)))); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Plus size={16}/>展开全部题目</button><button onClick={event => { setCollapsed(new Set()); setExpanded(new Set()); setAnswers(new Set()); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Minus size={16}/>收起全部题目</button><p>点击节点选中，＋/－ 展开收起。新增、编辑、排序和删除在选中后显示。</p><p className="graph-guide-desktop">按住空白处拖动；双指滑动移动；捏合或 Option＋滚动缩放。</p><p className="graph-guide-touch">单指拖动，双指捏合缩放。</p></div></details>
+      <button className="graph-scroll-mode" aria-label={wheelMode === "pan" ? "切换为滚动缩放" : "切换为滚动移动"} aria-pressed={wheelMode === "zoom"} title="默认滚动移动画布，捏合或 Option＋滚动缩放；点击切换滚动模式" onClick={switchWheelMode}>滚动：{wheelMode === "pan" ? "移动" : "缩放"}</button><i/><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={18}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={18}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={19}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={18}/></button>
+    </div></div>
   </section>;
 }
