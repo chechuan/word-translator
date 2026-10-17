@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { ArrowDown, ArrowUp, BookOpen, ChevronRight, Focus, GitBranch, Maximize2, Minus, Pencil, PenLine, Plus, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { statusLabels, type Question, type StudyData, type StudyGroup, type StudyNodeKind, type StudyNodeTarget, type Topic } from "@/lib/study";
+import { CanvasTouchGesture, clampCanvasZoom } from "@/lib/canvas-gestures";
 
 type Props = {
   data: StudyData; activeTopic: string; activeQuestion: string;
@@ -32,6 +33,8 @@ export default function ArchitectureMap(props: Props) {
   const autoFit = useRef(true);
   const previousSize = useRef({ width: 0, height: 0 });
   const pan = useRef<{ pointerId: number; x: number; y: number; cameraX: number; cameraY: number } | null>(null);
+  const touch = useRef(new CanvasTouchGesture());
+  const lastPointerType = useRef("");
   const zoom = camera.zoom;
 
   function moveCamera(next: typeof camera) {
@@ -43,7 +46,7 @@ export default function ArchitectureMap(props: Props) {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const current = cameraRef.current;
-    const next = Math.max(0.1, Math.min(1.8, nextZoom));
+    const next = clampCanvasZoom(nextZoom);
     const anchor = point ?? { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
     const ratio = next / current.zoom;
     autoFit.current = false;
@@ -74,6 +77,18 @@ export default function ArchitectureMap(props: Props) {
     }
     viewport.addEventListener("wheel", wheel, { passive: false });
     return () => viewport.removeEventListener("wheel", wheel);
+  }, []);
+  useEffect(() => {
+    const cancelGestures = () => {
+      const viewport = viewportRef.current;
+      const ids = [...touch.current.pointerIds, ...(pan.current ? [pan.current.pointerId] : [])];
+      touch.current.clear();
+      pan.current = null;
+      viewport?.classList.remove("panning");
+      for (const id of ids) if (viewport?.hasPointerCapture(id)) viewport.releasePointerCapture(id);
+    };
+    window.addEventListener("blur", cancelGestures);
+    return () => { window.removeEventListener("blur", cancelGestures); cancelGestures(); };
   }, []);
   const nodes: MapNode[] = [];
   const lines: { from: MapNode; to: MapNode; color: string }[] = [];
@@ -169,11 +184,24 @@ export default function ArchitectureMap(props: Props) {
   useEffect(() => { if (props.activeQuestion) { setAnswers(old => new Set([...old, props.activeQuestion])); setSelectedNodeKey(props.activeQuestion); } }, [props.activeQuestion]);
   function toggle(setter: typeof setExpanded, id: string) { setter(old => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    lastPointerType.current = event.pointerType;
+    if (event.pointerType === "touch") {
+      const rect = viewport.getBoundingClientRect();
+      touch.current.start(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top }, cameraRef.current);
+      if (touch.current.pointerIds.length > 1) {
+        event.preventDefault();
+        autoFit.current = false;
+        for (const id of touch.current.pointerIds) viewport.setPointerCapture(id);
+        viewport.classList.add("panning");
+      }
+      // Preserve a normal tap on a node. Capture only after a drag/pinch starts.
+      return;
+    }
     if (!event.isPrimary || pan.current || (event.button !== 0 && event.button !== 1)) return;
     if (event.button === 0 && (event.target as Element).closest("button,input,a")) return;
     event.preventDefault();
-    const viewport = viewportRef.current;
-    if (!viewport) return;
     const current = cameraRef.current;
     autoFit.current = false;
     pan.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, cameraX: current.x, cameraY: current.y };
@@ -181,11 +209,31 @@ export default function ArchitectureMap(props: Props) {
     viewport.classList.add("panning");
   }
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
+    const viewport = viewportRef.current;
+    if (event.pointerType === "touch" && viewport) {
+      const rect = viewport.getBoundingClientRect();
+      const next = touch.current.move(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top });
+      if (next) {
+        event.preventDefault();
+        autoFit.current = false;
+        viewport.setPointerCapture(event.pointerId);
+        viewport.classList.add("panning");
+        moveCamera(next);
+      }
+      return;
+    }
     const start = pan.current;
     if (!start || start.pointerId !== event.pointerId) return;
     moveCamera({ ...cameraRef.current, x: start.cameraX + event.clientX - start.x, y: start.cameraY + event.clientY - start.y });
   }
   function endPan(event: PointerEvent<HTMLDivElement>) {
+    if (touch.current.has(event.pointerId)) {
+      touch.current.end(event.pointerId, cameraRef.current);
+      const viewport = viewportRef.current;
+      if (!touch.current.pointerIds.length) viewport?.classList.remove("panning");
+      if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+      return;
+    }
     if (pan.current?.pointerId !== event.pointerId) return;
     pan.current = null;
     const viewport = viewportRef.current;
@@ -195,7 +243,7 @@ export default function ArchitectureMap(props: Props) {
 
   return <section className="architecture-board" aria-label="考研知识架构图">
     <div className="graph-toolbar"><div className="graph-path"><GitBranch size={16} /><span>总框架</span><ChevronRight size={12}/><span>{data.groups.length} 组</span><ChevronRight size={12}/><span>专题</span><ChevronRight size={12}/><span>论述题</span><ChevronRight size={12}/><span>答案</span></div><div><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set(data.groups.flatMap(g => g.topics.map(t => t.id)))); }}><Plus size={13}/>展开题目</button><button onClick={() => { setCollapsed(new Set()); setExpanded(new Set()); setAnswers(new Set()); }}><Minus size={13}/>收起题目</button></div></div>
-    <div className="graph-viewport" ref={viewportRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan} onLostPointerCapture={endPan} style={{ backgroundPosition: `${camera.x}px ${camera.y}px` }}>
+    <div className="graph-viewport" ref={viewportRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={endPan} onPointerCancel={endPan} onLostPointerCapture={event => { if (event.target === event.currentTarget) endPan(event); }} onClickCapture={event => { if (lastPointerType.current === "touch" && touch.current.didMove && event.detail !== 0) { event.preventDefault(); event.stopPropagation(); } }} style={{ backgroundPosition: `${camera.x}px ${camera.y}px` }}>
       <div className="graph-space"><div ref={drawingRef} className="graph-drawing" style={{ width: contentWidth, height, transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${zoom})`, "--node-font": `${Math.min(21, 14 / zoom)}px`, "--control-scale": 1 / zoom } as CSSProperties}>
         <svg width={contentWidth} height={height} className="graph-lines" aria-hidden="true">{lines.map(({ from, to, color }) => { const x1 = from.x + from.width, y1 = from.y + from.height / 2, x2 = to.x, y2 = to.y + to.height / 2; return <path key={`${from.key}-${to.key}`} className={`theme-${color}`} d={`M ${x1} ${y1} C ${x1 + (x2-x1)/2} ${y1}, ${x2 - (x2-x1)/2} ${y2}, ${x2} ${y2}`} />; })}</svg>
         {nodes.map(node => <div key={node.key} data-question-id={node.type === "question" ? node.key : undefined} onClickCapture={() => setSelectedNodeKey(node.key)} className={`graph-node graph-${node.type} theme-${node.theme} ${selectedNodeKey === node.key ? "selected" : ""}`} style={{ left: node.x, top: node.y, width: node.width, height: node.type === "question" ? "auto" : node.height }}>
@@ -218,6 +266,6 @@ export default function ArchitectureMap(props: Props) {
           {selectedNode.type === "answer" && <button className="button secondary danger" onClick={deleteSelected} disabled={!selectedNode.question?.answer}><Trash2 size={17}/>清空答案</button>}
         </div>
       </div>}
-    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点击节点选中</strong><span> · </span>＋/－ 展开收起<span> · </span>操作栏新增 / 编辑 / 排序 / 删除<span> · </span>按住空白处自由拖动<span> · </span>滚轮直接缩放</span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
+    <div className="graph-bottom"><span className="graph-guide"><span/><strong>点击节点选中</strong><span className="graph-guide-desktop"> · ＋/－ 展开收起 · 操作栏新增 / 编辑 / 排序 / 删除 · 按住空白处自由拖动 · 滚轮直接缩放</span><span className="graph-guide-touch"> · 单指拖动 · 双指缩放</span></span><div className="graph-zoom"><button title="缩小" aria-label="缩小架构图" onClick={() => zoomAt(cameraRef.current.zoom - .1)}><ZoomOut size={16}/></button><span>{Math.round(zoom*100)}%</span><button title="放大" aria-label="放大架构图" onClick={() => zoomAt(cameraRef.current.zoom + .1)}><ZoomIn size={16}/></button><i/><button aria-label="适应整张架构图" title="适应整张架构图" onClick={fit}><Focus size={17}/></button><button aria-label="恢复百分之百" title="恢复 100%" onClick={() => zoomAt(1)}><Maximize2 size={16}/></button></div></div>
   </section>;
 }
