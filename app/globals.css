@@ -208,3 +208,12 @@
   .graph-notices{top:64px;left:8px;right:8px}
 }
 @media(max-width:390px){.graph-brand strong{font-size:15px}.graph-brand{gap:5px}.graph-search{width:84px}.graph-header-left{gap:6px}}
+
+/* Small branch markers retain a generous, transparent click target. */
+.graph-branch-toggle{right:-18px;width:36px;height:36px;border:0;background:transparent;box-shadow:none}
+.graph-branch-toggle::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);box-sizing:border-box;width:18px;height:18px;border:1px solid var(--accent-line);border-radius:50%;background:#fff;pointer-events:none;transition:background .15s,border-color .15s}
+.graph-branch-toggle svg{position:relative;width:11px;height:11px;stroke-width:1.6;opacity:.8;pointer-events:none}
+.graph-branch-toggle:hover{background:transparent}
+.graph-branch-toggle:hover::before,.graph-branch-toggle:focus-visible::before{border-color:var(--accent);background:var(--accent-soft)}
+.graph-branch-toggle:hover svg,.graph-branch-toggle:focus-visible svg{opacity:1}
+@media(pointer:coarse){.graph-branch-toggle{right:-22px;width:44px;height:44px}}
