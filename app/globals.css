@@ -87,7 +87,23 @@
 
 .detail-dialog-actions+.status-select{margin:0}
 .graph-guide-touch{display:none}
+.graph-zoom .graph-scroll-mode{width:auto;min-width:88px;padding:0 8px;font-size:10px;border:1px solid #dce6d3;margin-right:7px}
+.graph-zoom .graph-scroll-mode[aria-pressed=true]{background:#edf3e6;color:#557346}
+.graph-answer{padding:0;min-height:92px;display:block}
+.graph-reference+ .graph-reference{border-top:1px solid var(--accent-line)}
+.graph-reference>summary,.reference-disclosure>summary{list-style:none;display:flex;align-items:center;gap:7px;min-height:44px;padding:11px 14px;cursor:pointer;color:var(--accent);font-size:13px;font-weight:500}
+.graph-reference>summary::-webkit-details-marker,.reference-disclosure>summary::-webkit-details-marker{display:none}
+.graph-reference>summary>svg:last-child,.reference-disclosure>summary>svg:last-child{margin-left:auto;flex-shrink:0;transition:transform .15s}
+.graph-reference[open]>summary>svg:last-child,.reference-disclosure[open]>summary>svg:last-child{transform:rotate(180deg)}
+.graph-reference-body{padding:0 14px 14px;font-size:13px;line-height:1.9;color:#65785a}
+.graph-reference-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.graph-reference-body>.text-button{margin-top:12px;font-size:11px}
+.graph-reference-body .memory-keywords{font-size:13px}
+.reference-disclosure{border:1px solid #dfe7d5;border-radius:7px;margin:12px 0;background:#fcfef9}
+.reference-disclosure>.detail-dialog-answer{margin:0 12px 12px}
+.reference-disclosure-body{padding:0 16px 16px;font-size:13px;line-height:1.9}
 @media(max-width:760px),(pointer:coarse){.graph-guide-desktop{display:none}.graph-guide-touch{display:inline}}
+@media(max-width:760px),(pointer:coarse){.graph-zoom .graph-scroll-mode{display:none}}
 @media(max-width:500px){.modal{padding:19px;max-height:calc(100dvh - 30px)}.modal-heading{margin-bottom:20px}.practice-mode-tabs{margin-bottom:19px}.practice-prompt h3{font-size:21px}.practice-tools{align-items:flex-start;gap:8px;flex-direction:column}.practice-tools>div{width:100%;justify-content:space-between;margin-top:4px}.self-assessment{flex-direction:column;align-items:flex-start;gap:10px}.self-assessment button{font-size:10px;padding:7px 9px}.practice-footer>div{gap:8px}.practice-footer>.button{padding:9px 10px;font-size:11px}.practice-footer{gap:5px}.practice-writing-label{font-size:10px}.toast{font-size:11px;bottom:17px;padding:10px 12px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 

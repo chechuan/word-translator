@@ -1,5 +1,18 @@
 export type CanvasCamera = { x: number; y: number; zoom: number };
 export type CanvasPoint = { x: number; y: number };
+export type CanvasWheelMode = "pan" | "zoom";
+export const CANVAS_WHEEL_MODE_KEY = "yantu-map-wheel-mode";
+type CanvasWheel = { deltaX: number; deltaY: number; deltaMode: number; ctrlKey: boolean; altKey: boolean; shiftKey: boolean };
+export function resolveCanvasWheel(event: CanvasWheel, mode: CanvasWheelMode, viewport: { width: number; height: number }) {
+  const dx = event.deltaX * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.width : 1);
+  const dy = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.height : 1);
+  // Browsers report trackpad pinches as wheel events with ctrlKey enabled.
+  if (event.ctrlKey || event.altKey || mode === "zoom") {
+    const pixels = Math.max(-240, Math.min(240, dy || dx));
+    return { kind: "zoom" as const, factor: Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.0018)) };
+  }
+  return { kind: "pan" as const, dx: event.shiftKey && !dx ? dy : dx, dy: event.shiftKey && !dx ? 0 : dy };
+}
 type TouchFrame = { camera: CanvasCamera; points: CanvasPoint[] };
 
 export function clampCanvasZoom(zoom: number) {

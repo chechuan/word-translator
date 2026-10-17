@@ -1,6 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CanvasTouchGesture } from "../lib/canvas-gestures.ts";
+import { CanvasTouchGesture, resolveCanvasWheel } from "../lib/canvas-gestures.ts";
+
+const wheel = { deltaX: 0, deltaY: 80, deltaMode: 0, ctrlKey: false, altKey: false, shiftKey: false };
+const viewport = { width: 900, height: 600 };
+test("默认触控板双指滑动只平移，捏合和 Option＋滚动仍缩放", () => {
+  assert.deepEqual(resolveCanvasWheel(wheel, 'pan', viewport), { kind: 'pan', dx: 0, dy: 80 });
+  assert.deepEqual(resolveCanvasWheel({ ...wheel, deltaX: 35, deltaY: -20 }, 'pan', viewport), { kind: 'pan', dx: 35, dy: -20 });
+  const pinch = resolveCanvasWheel({ ...wheel, deltaY: -5, ctrlKey: true }, 'pan', viewport);
+  assert.equal(pinch.kind, 'zoom');
+  assert.ok(pinch.factor > 1);
+  assert.equal(resolveCanvasWheel({ ...wheel, altKey: true }, 'pan', viewport).kind, 'zoom');
+  assert.equal(resolveCanvasWheel(wheel, 'zoom', viewport).kind, 'zoom');
+});
+test("滚动支持鼠标行单位和整页单位，Shift＋滚动可以横向移动", () => {
+  assert.deepEqual(resolveCanvasWheel({ ...wheel, deltaY: 3, deltaMode: 1 }, 'pan', viewport), { kind: 'pan', dx: 0, dy: 48 });
+  assert.deepEqual(resolveCanvasWheel({ ...wheel, deltaX: 1, deltaY: 1, deltaMode: 2 }, 'pan', viewport), { kind: 'pan', dx: 900, dy: 600 });
+  assert.deepEqual(resolveCanvasWheel({ ...wheel, shiftKey: true }, 'pan', viewport), { kind: 'pan', dx: 80, dy: 0 });
+});
 
 function near(actual, expected) { assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`); }
 const camera = { x: 20, y: 30, zoom: 0.4 };
