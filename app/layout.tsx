@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "研途笔记 · 考研资料整理",
-  description: "整理考研资料，构建知识框架，记录复习笔记与学习进度。",
+  title: "近代史笔记 · 知识架构图",
+  description: "整理中国近现代史题目、答案与记忆关键词，构建知识框架，记录复习进度。",
   metadataBase: new URL("https://translate.cc1204.cn"),
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };

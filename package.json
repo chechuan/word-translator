@@ -2,7 +2,7 @@
   "name": "word-translator",
   "version": "0.1.0",
   "private": true,
-  "description": "拾史：近代史知识框架与论述题默写",
+  "description": "近代史笔记：知识架构与论述题复习",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -43,7 +43,7 @@ function downloadData(data: StudyData) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = url; anchor.download = `研途笔记题库-${new Date().toLocaleDateString("sv-SE")}.json`; anchor.click();
+  anchor.href = url; anchor.download = `近代史题库-${new Date().toLocaleDateString("sv-SE")}.json`; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -155,7 +155,7 @@ export default function Home() {
 
   return <div className={`graph-app theme-${theme}${focusMode ? " is-focused" : ""}`}>
     <header className="graph-header">
-      <div className="graph-header-left"><a href="/" className="graph-brand"><span><GitBranch size={19}/></span><strong>研途笔记</strong></a><span className="graph-summary" title={`${data.groups.length} 组 · ${data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · ${all.length} 道论述题`}>{data.groups.length} 组 · {all.length} 题</span><span className={`save-status graph-sync sync-${syncStatus} ${saveError ? "save-error" : ""}`} aria-live="polite"><span/><span className="graph-sync-label">{!loaded ? "正在读取题库" : saveError ? "本地备份异常" : syncStatus === "synced" ? "云端已同步" : syncStatus === "saving" ? "正在同步到云端…" : syncStatus === "offline" ? "仅本机保存，等待同步" : syncStatus === "conflict" ? "有待确认的同步内容" : "正在连接云端…"}</span></span></div>
+      <div className="graph-header-left"><a href="/" className="graph-brand"><span><GitBranch size={19}/></span><strong>近代史笔记</strong></a><span className="graph-summary" title={`${data.groups.length} 组 · ${data.groups.reduce((sum,g) => sum + g.topics.length,0)} 个专题 · ${all.length} 道论述题`}>{data.groups.length} 组 · {all.length} 题</span><span className={`save-status graph-sync sync-${syncStatus} ${saveError ? "save-error" : ""}`} aria-live="polite"><span/><span className="graph-sync-label">{!loaded ? "正在读取题库" : saveError ? "本地备份异常" : syncStatus === "synced" ? "云端已同步" : syncStatus === "saving" ? "正在同步到云端…" : syncStatus === "offline" ? "仅本机保存，等待同步" : syncStatus === "conflict" ? "有待确认的同步内容" : "正在连接云端…"}</span></span></div>
       <div className="graph-header-right"><label className="graph-search"><Search size={16}/><input aria-label="搜索全部题目" placeholder="搜索题目…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清空搜索" onClick={() => setQuery("")}><X size={16}/></button>}</label><button className="button small secondary" aria-label="导出题库" onClick={() => downloadData(data)}><ArrowDownToLine size={16}/><span>导出</span></button><button className="button small secondary" aria-label="导入题库" onClick={() => fileRef.current?.click()}><Upload size={16}/><span>导入</span></button><button className="button small secondary graph-focus-button" aria-label="进入专注模式" title="隐藏顶部工具栏，让架构图占满窗口" onClick={() => changeFocusMode(true)}><Scan size={17}/><span>专注</span></button></div>
     </header>
     {focusMode && <button className="graph-exit-focus button secondary" onClick={() => changeFocusMode(false)} title="退出专注模式（Esc）"><Minimize2 size={17}/><span>退出专注</span></button>}
